@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { entrar, cadastrar, completarCadastro, codigoInicial, esqueciSenha, trocarSenha, sair, toast, authErro } from '../data/store';
-import { Logo } from '../ui/Icon';
+import { LogoOseki } from '../ui/brand';
 import { Sheet } from '../ui/kit';
 import { MES, today } from '../data/util';
 
@@ -19,7 +19,6 @@ export default function Login({ modo: inicial = 'entrar', desk = false }: { modo
               <span style={{ font: '700 72px/0.92 var(--font-display)', textTransform: 'uppercase' }}>Painel da<br />academia</span>
               <span className="on-night-muted" style={{ fontSize: 16, maxWidth: 440, lineHeight: 1.6 }}>Presenças, faixas, alunos e mensalidades em tela grande. Tudo sincronizado com o app que alunos e professores usam no celular.</span>
             </div>
-            <span className="os-tatame__sub">Marangoni BJJ / Oseki BJJ</span>
           </div>
           <div><div className="os-card os-card--desk" style={{ width: '100%', maxWidth: 420 }}><Form modo={modo} setModo={setModo} desk /></div></div>
         </>
@@ -35,12 +34,9 @@ export default function Login({ modo: inicial = 'entrar', desk = false }: { modo
 
 function Marca() {
   return (
-    <div className="col" style={{ gap: 22 }}>
-      <div className="logo" style={{ width: 64, height: 64, borderRadius: 18, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Logo /></div>
-      <div className="col" style={{ gap: 6 }}>
-        <span className="t-wordmark">Oseki BJJ</span>
-        <span className="on-night-muted" style={{ fontSize: 14 }}>Marangoni BJJ / Oseki BJJ</span>
-      </div>
+    <div className="col" style={{ gap: 18, color: '#fff' }}>
+      <LogoOseki width={150} />
+      <span className="on-night-muted" style={{ fontSize: 14 }}>Marangoni BJJ / Oseki BJJ</span>
       <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: '#DCE3EA', maxWidth: 300 }}>Presença, faixa e evolução de cada aluno, no tatame e no celular.</p>
     </div>
   );

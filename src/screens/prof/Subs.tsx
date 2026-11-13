@@ -3,7 +3,8 @@ import QRCode from 'qrcode';
 import { useDB, update, toast, graduar, enviarAviso, nextStep, meuNome } from '../../data/store';
 import { addDays, aulasDoDia, aulaById, curta, freq, grupoDe, iso, metaDe, presencas, today, WD, primeiro, uid } from '../../data/util';
 import { Sub, Avatar, Bars, Chip, Overline, Setting, Field, Stepper, Belt } from '../../ui/kit';
-import { Icon, Logo } from '../../ui/Icon';
+import { Icon } from '../../ui/Icon';
+import { SeloOseki } from '../../ui/brand';
 import { go } from '../../ui/router';
 import { PLANOS } from '../../data/seed';
 import { qrPayload, slotNow } from '../shared/qr';
@@ -179,7 +180,7 @@ export function Academia() {
   return (
     <Sub title="Academia" sub="Dados, valores e equipe" fallback="prof/mais" admin>
       <div className="os-card" style={{ alignItems: 'center' }}>
-        <div style={{ width: 72, height: 72, borderRadius: 20, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-control)' }}><Logo size={44} /></div>
+        <SeloOseki size={72} />
         <span className="t-title">{f.academia}</span><span className="t-sub">{f.equipe}</span>
       </div>
       <Field label="Nome"><input className="os-input" value={f.academia} onChange={(e) => setF({ ...f, academia: e.target.value })} /></Field>

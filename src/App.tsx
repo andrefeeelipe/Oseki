@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useDB, useAuth } from './data/store';
 import { useRoute, go } from './ui/router';
 import { Toast } from './ui/kit';
-import { Logo } from './ui/Icon';
+import { LogoOseki } from './ui/brand';
 import { TARGET } from './config';
 import Login from './screens/Login';
 import AlunoApp from './screens/aluno/AlunoApp';
@@ -12,8 +12,7 @@ import Desk from './screens/desk/Desk';
 function Splash({ texto }: { texto: string }) {
   return (
     <div className="login os-tatame" style={{ borderRadius: 0, justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
-      <div className="logo" style={{ width: 64, height: 64, borderRadius: 18, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Logo /></div>
-      <span className="t-wordmark" style={{ fontSize: 44 }}>Oseki BJJ</span>
+      <span style={{ color: '#fff' }}><LogoOseki width={140} /></span>
       <span className="on-night-muted" style={{ maxWidth: 300, lineHeight: 1.6 }}>{texto}</span>
     </div>
   );

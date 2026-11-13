@@ -3,7 +3,8 @@ import jsQR from 'jsqr';
 import { update, marcarPresenca, toast, notify } from '../../data/store';
 import { addDays, aulasDoAluno, curta, freq, fromIso, iso, MES, presencas, semanasSeguidas, today, WD, br, grupoDe, metaDe, grausTxt, proximaFaixa, aulaById, valorDe, brl, mesAtual } from '../../data/util';
 import { Sub, Chip, Bars, Overline, Belt } from '../../ui/kit';
-import { Icon, Logo } from '../../ui/Icon';
+import { Icon } from '../../ui/Icon';
+import { LogoOseki } from '../../ui/brand';
 import { go } from '../../ui/router';
 import { planoNome } from '../../data/seed';
 import { validarQR } from '../shared/qr';
@@ -279,7 +280,7 @@ export function Carteirinha() {
     <Sub title="Carteirinha" sub="Identificação de atleta" fallback="aluno/perfil">
       <div className="idcard os-tatame" style={{ borderRadius: 22 }}>
         <div className="row-between">
-          <span style={{ font: 'italic 700 28px/1 var(--font-display)' }}>OSEKI BJJ</span>
+          <span style={{ color: '#fff' }}><LogoOseki width={64} /></span>
           <span className="os-seal" style={{ background: 'var(--fundador)', color: '#121A24' }}>Atleta</span>
         </div>
         <div className="row" style={{ gap: 14 }}>

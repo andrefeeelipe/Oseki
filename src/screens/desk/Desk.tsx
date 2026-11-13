@@ -5,6 +5,7 @@ import type { BeltName, PlanoId } from '../../data/types';
 import { ADULTO, INFANTIL, addDays, aulaById, aulasDoDia, curta, freq, fromIso, grausTxt, grupoDe, idadeDe, iso, metaDe, presencas, today, WD, MES_LONG, br, primeiro, valorDe, brl, mesAtual } from '../../data/util';
 import { Avatar, Belt, Chip, Bars, Calendar, Legend, Switch, Stepper, attChip, type DayState, Sheet, Field } from '../../ui/kit';
 import { Icon } from '../../ui/Icon';
+import { LogoOseki } from '../../ui/brand';
 import { ProfSub } from '../prof/ProfApp';
 import { EditAluno } from '../prof/Alunos';
 import { go } from '../../ui/router';
@@ -34,8 +35,8 @@ export default function Desk({ route }: { route: string[] }) {
     <div className="desk os-root">
       <nav className="os-sidenav" aria-label="Menu do painel">
         <div className="nav-hide col" style={{ gap: 2, padding: '0 8px 20px' }}>
-          <span style={{ font: 'italic 700 30px/1 var(--font-display)' }}>OSEKI BJJ</span>
-          <span className="os-tatame__sub">Painel da academia</span>
+          <LogoOseki width={96} />
+          <span className="os-tatame__sub" style={{ marginTop: 8 }}>Painel da academia</span>
         </div>
         {MENU.map(([id, l]) => (
           <button key={id} className="os-navitem" aria-current={tela === id || (tela === 'ficha' && id === 'alunos') ? 'page' : undefined} onClick={() => go(id)}>

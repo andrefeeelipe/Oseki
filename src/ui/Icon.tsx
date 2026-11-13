@@ -53,13 +53,3 @@ export function Icon({ n, size = 22, sw = 2, className, style }: { n: keyof type
     </svg>
   );
 }
-
-export function Logo({ size = 40 }: { size?: number }) {
-  return (
-    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 40 40" fill="none">
-      <rect x="2" y="15" width="36" height="10" rx="2" fill="#121A24" />
-      <rect x="24" y="15" width="8" height="10" fill="#C62A2F" />
-      <path d="M17 25l-5 12M23 25l5 12" stroke="#121A24" strokeWidth="5" strokeLinecap="round" />
-    </svg>
-  );
-}
