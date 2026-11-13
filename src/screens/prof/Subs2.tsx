@@ -403,6 +403,7 @@ export function PerfilProf() {
       <LinkCard icon="star" title="Requisitos de graduação" onClick={() => go('prof/x/requisitos')} />
       <LinkCard icon="lock" title="Trocar senha" onClick={() => setSenha(true)} />
       <button className="os-btn os-btn--danger" onClick={() => sair()}>Sair</button>
+        <span className="t-sub" style={{ textAlign: 'center' }}>Versão {__VERSAO__}</span>
       {senha && <TrocarSenha onClose={() => setSenha(false)} />}
     </Sub>
   );

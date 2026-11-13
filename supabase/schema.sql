@@ -181,6 +181,51 @@ begin
   return papel;
 end $$;
 
+-- Mescla duas fichas do mesmo aluno (cadastro duplicado). Só professor.
+-- p_manter: ficha cujos dados prevalecem. Campos vazios nela são completados pela outra.
+-- Presenças, avisos, pagamentos, notas e histórico das duas ficam juntos.
+-- Se só uma das fichas tem conta no app, a conta continua valendo (o login não se perde).
+create or replace function public.mesclar_alunos(p_manter uuid, p_remover uuid) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare
+  a public.profiles; b public.profiles; dados jsonb; k text; alvo uuid; outro uuid;
+begin
+  if not public.is_staff() then raise exception 'Só professores podem mesclar alunos.'; end if;
+  if p_manter = p_remover then raise exception 'Escolha duas fichas diferentes.'; end if;
+  select * into a from public.profiles where id = p_manter and role = 'aluno';
+  select * into b from public.profiles where id = p_remover and role = 'aluno';
+  if a.id is null or b.id is null then raise exception 'Ficha de aluno não encontrada.'; end if;
+  dados := a.data;
+  for k in select jsonb_object_keys(b.data) loop
+    if not (dados ? k) or dados->k in ('null'::jsonb, '""'::jsonb, '[]'::jsonb, '{}'::jsonb) then
+      dados := dados || jsonb_build_object(k, b.data->k);
+    end if;
+  end loop;
+  dados := dados || jsonb_build_object(
+    'notes', coalesce(a.data->'notes', '[]') || coalesce(b.data->'notes', '[]'),
+    'hist', coalesce(a.data->'hist', '[]') || coalesce(b.data->'hist', '[]'),
+    'pagamentos', coalesce((select jsonb_agg(x) from (
+        select distinct on (x->>'mes') x from jsonb_array_elements(coalesce(a.data->'pagamentos', '[]') || coalesce(b.data->'pagamentos', '[]')) x
+        order by x->>'mes') t), '[]'),
+    'tecnicas', coalesce(b.data->'tecnicas', '{}') || coalesce(a.data->'tecnicas', '{}'),
+    'totalAnterior', greatest(coalesce((a.data->>'totalAnterior')::int, 0), coalesce((b.data->>'totalAnterior')::int, 0)),
+    'convidado', coalesce((a.data->>'convidado')::boolean, false) and coalesce((b.data->>'convidado')::boolean, false));
+  -- fica o id que tem conta no app (o login é ligado ao id)
+  if coalesce((a.data->>'convidado')::boolean, false) and not coalesce((b.data->>'convidado')::boolean, false) then
+    alvo := b.id; outro := a.id;
+  else
+    alvo := a.id; outro := b.id;
+  end if;
+  perform set_config('oseki.sistema', '1', true);
+  update public.att set sid = alvo where sid = outro;
+  update public.notifs set dest = alvo::text where dest = outro::text;
+  delete from public.profiles where id = outro;
+  update public.profiles set data = dados || jsonb_build_object('aulas',
+      coalesce((a.data->>'aulas')::int, 0) + coalesce((b.data->>'aulas')::int, 0)) where id = alvo;
+  perform set_config('oseki.sistema', '0', true);
+  return alvo;
+end $$;
+
 -- O primeiro professor recebe o código de professor sem precisar dele:
 -- enquanto não existe nenhum admin, este código fica visível só para quem está criando a conta.
 create or replace function public.primeiro_acesso() returns boolean
@@ -268,6 +313,7 @@ revoke delete on public.segredos from authenticated;
 
 grant execute on function public.criar_perfil(text, text, jsonb) to authenticated;
 grant execute on function public.diretorio() to authenticated;
+grant execute on function public.mesclar_alunos(uuid, uuid) to authenticated;
 grant execute on function public.presencas_ranking(date) to authenticated;
 grant execute on function public.codigo_inicial() to anon, authenticated;
 grant execute on function public.fichas_livres(text) to anon, authenticated;

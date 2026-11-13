@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useDB, setFaixa, setApto, addNote, toast, update, registrarPagamento, estornarPagamento } from '../../data/store';
+import { getDB, useDB, setFaixa, setApto, addNote, toast, update, registrarPagamento, estornarPagamento } from '../../data/store';
 import { PLANOS, planoNome } from '../../data/seed';
 import type { PlanoId, Student } from '../../data/types';
-import { ALL_BELTS, ADULTO, INFANTIL, aulaById, freq, grausTxt, grupoDe, idadeDe, metaDe, pct, valorDe, brl, mesAtual, diasSemTreino, ultimoTreino } from '../../data/util';
+import { ALL_BELTS, ADULTO, INFANTIL, aulaById, freq, grausTxt, grupoDe, idadeDe, metaDe, pct, valorDe, brl, mesAtual, diasSemTreino, ultimoTreino, possiveisDuplicados } from '../../data/util';
+import { Mesclar } from './Duplicados';
 import { Sheet, Field } from '../../ui/kit';
 import { Avatar, Belt, Chip, Setting, StatCard, SubHeader, LinkCard } from '../../ui/kit';
 import { Icon } from '../../ui/Icon';
@@ -14,6 +15,7 @@ export function Alunos() {
   const db = useDB();
   const [q, setQ] = useState('');
   const [g, setG] = useState('Todos');
+  const dups = possiveisDuplicados(db).length;
   const ausente = (s: Student) => { const d = diasSemTreino(db, s); return d == null || d > 30; };
   const lista = db.students.filter((s) => (s.nome + ' ' + (s.apelido ?? '')).toLowerCase().includes(q.toLowerCase()) && (g === 'Inativos' ? s.status === 'inativo' : s.status !== 'inativo' && (g === 'Todos' || (g === 'Ausentes' ? ausente(s) : g === 'Sem app' ? !!s.convidado : grupoDe(s) === g)))).sort((a, b) => a.nome.localeCompare(b.nome));
   return (
@@ -24,6 +26,12 @@ export function Alunos() {
         <input id="busca" type="search" className="os-input" style={{ background: 'var(--surface)' }} placeholder="Buscar aluno" value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="scroll-x">{['Todos', 'Ausentes', 'Sem app', 'Kids', 'Teens', 'Adulto', 'Inativos'].map((x) => <button key={x} className="os-pill" aria-pressed={g === x} onClick={() => setG(x)}>{x}</button>)}
           <button className="os-pill" onClick={() => go('prof/x/convidar')}><Icon n="plus" size={16} />&nbsp;Convidar</button></div>
+        {dups > 0 && (
+          <button className="os-card row" style={{ gap: 12, alignItems: 'center', textAlign: 'left', cursor: 'pointer', border: '1px solid var(--warning)', flexDirection: 'row' }} onClick={() => go('prof/x/duplicados')}>
+            <Icon n="users" size={20} />
+            <span className="col grow"><span className="t-strong">{dups} {dups === 1 ? 'possível cadastro duplicado' : 'possíveis cadastros duplicados'}</span><span className="t-sub">Toque para revisar e mesclar</span></span>
+          </button>
+        )}
         <div className="os-list" style={{ padding: '4px 14px' }}>
           {lista.map((s) => (
             <button key={s.id} className="os-listrow" onClick={() => go(`prof/aluno/${s.id}`)} style={{ width: '100%', border: 0, borderBottom: '1px solid var(--line)', background: 'none', textAlign: 'left', cursor: 'pointer', color: 'var(--ink)' }}>
@@ -47,8 +55,12 @@ export function AlunoDetalhe({ sid }: { sid: string }) {
   const s = db.students.find((x) => x.id === sid);
   const [note, setNote] = useState('');
   const [edit, setEdit] = useState(false);
+  const [juntar, setJuntar] = useState<string | null>(null);
+  const [buscaJ, setBuscaJ] = useState('');
   const [pg, setPg] = useState<null | { valor: string; via: string }>(null);
   if (!s) return <div className="scroll"><SubHeader title="Aluno" fallback="prof/alunos" /></div>;
+  const meusDups = possiveisDuplicados(db).filter((p) => p.a.id === s.id || p.b.id === s.id).map((p) => ({ b: p.a.id === s.id ? p.b : p.a, motivo: p.motivo }));
+  const outroJ = juntar ? db.students.find((x) => x.id === juntar) : undefined;
   const meta = metaDe(db, s);
   const opts: BeltName[] = grupoDe(s) === 'Adulto' ? ADULTO : Array.from(new Set([...INFANTIL, ...ADULTO]));
   return (
@@ -62,6 +74,17 @@ export function AlunoDetalhe({ sid }: { sid: string }) {
           {s.fundador && <span className="os-seal os-seal--fundador" style={{ alignSelf: 'flex-start' }}>Fundador #{s.fundador}</span>}
         </div>
       </div>
+      <div className="row" style={{ gap: 8, padding: '6px 20px 0', flexDirection: 'row' }}>
+        <button className="os-btn os-btn--primary os-btn--sm" onClick={() => setEdit(true)}><Icon n="edit" size={16} />Editar dados</button>
+        <button className="os-btn os-btn--secondary os-btn--sm" onClick={() => setJuntar('')}>Mesclar com…</button>
+      </div>
+      {meusDups.map(({ b, motivo }) => (
+        <div key={b.id} className="pad" style={{ paddingTop: 10, paddingBottom: 0 }}>
+          <button className="os-card" style={{ textAlign: 'left', cursor: 'pointer', border: '1px solid var(--warning)' }} onClick={() => setJuntar(b.id)}>
+            <span className="t-strong">Possível duplicado: {b.nome}</span><span className="t-sub">{motivo} · toque para mesclar</span>
+          </button>
+        </div>
+      ))}
       <div className="pad" style={{ paddingTop: 12 }}>
         <div className="os-card" style={{ padding: 18, gap: 14 }}>
           <div className="row-between"><span style={{ fontSize: 15, fontWeight: 700 }}>Graduação</span><span className="t-small muted">{s.belt} · {grausTxt(s.graus)}</span></div>
@@ -129,6 +152,17 @@ export function AlunoDetalhe({ sid }: { sid: string }) {
         {s.tel && <a className="os-btn os-btn--secondary" href={`https://wa.me/55${s.tel.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"><Icon n="send" size={18} />Mensagem no WhatsApp</a>}
       </div>
       {edit && <EditAluno sid={s.id} onClose={() => setEdit(false)} />}
+      {juntar !== null && outroJ && <Mesclar a={s} b={outroJ} onClose={() => { setJuntar(null); if (!getDB().students.some((x) => x.id === s.id)) go('prof/alunos'); }} />}
+      {juntar === '' && (
+        <Sheet title={`Mesclar ${s.nome.split(' ')[0]} com…`} onClose={() => setJuntar(null)}>
+          <input className="os-input" placeholder="Buscar aluno" value={buscaJ} onChange={(e) => setBuscaJ(e.target.value)} />
+          <div className="col" style={{ gap: 6, maxHeight: '45dvh', overflowY: 'auto' }}>
+            {db.students.filter((x) => x.id !== s.id && x.nome.toLowerCase().includes(buscaJ.toLowerCase())).slice(0, 30).map((x) => (
+              <button key={x.id} className="sheet-opt" onClick={() => setJuntar(x.id)}>{x.nome} · {x.belt}</button>
+            ))}
+          </div>
+        </Sheet>
+      )}
       {pg && (
         <Sheet title="Registrar pagamento" onClose={() => setPg(null)}>
           <Field label="Valor (R$)"><input className="os-input" inputMode="decimal" value={pg.valor} onChange={(e) => setPg({ ...pg, valor: e.target.value })} /></Field>

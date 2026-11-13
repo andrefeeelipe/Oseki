@@ -5,6 +5,7 @@ import Chamada from './Chamada';
 import Aprovacoes from './Aprovacoes';
 import { Alunos, AlunoDetalhe } from './Alunos';
 import Mais from './Mais';
+import { Duplicados } from './Duplicados';
 import * as P from './Subs';
 import * as P2 from './Subs2';
 import Ranking from '../shared/Ranking';
@@ -18,7 +19,7 @@ export function ProfSub({ sub, id }: { sub?: string; id?: string }) {
     academia: () => <P.Academia />, grade: () => <P.GerenciarGrade />, novaaula: () => <P.NovaAula id={id} />, qr: () => <P.QRAula classId={id} />,
     plano: () => <P2.PlanoAula />, convidar: () => <P2.Convidar />, historico: () => <P2.Historico sid={id} />, avaliacao: () => <P2.Avaliacao sid={id} />,
     requisitos: () => <P2.Requisitos />, publicar: () => <P2.Publicar />, financeiro: () => <P2.Financeiro />, relatorios: () => <P2.Relatorios />,
-    perfil: () => <P2.PerfilProf />, contratos: () => <P2.Contratos />, acesso: () => <P2.Acesso />,
+    perfil: () => <P2.PerfilProf />, duplicados: () => <Duplicados />, contratos: () => <P2.Contratos />, acesso: () => <P2.Acesso />,
   };
   return (M[sub ?? ''] ?? (() => <Mais />))();
 }

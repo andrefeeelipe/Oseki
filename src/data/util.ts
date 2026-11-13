@@ -186,3 +186,33 @@ export function diasSemTreino(db: DB, s: Student): number | null {
   return u ? Math.round((today().getTime() - fromIso(u).getTime()) / 864e5) : null;
 }
 export const nomeCurto = (s: { nome: string; apelido?: string }) => s.apelido?.trim() || s.nome.split(' ')[0];
+
+/* ---------- Cadastros duplicados ---------- */
+const semAcento = (t: string) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+const LIGA = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+const partes = (n: string) => semAcento(n).split(' ').filter((p) => p && !LIGA.has(p));
+const digitos = (t?: string) => (t || '').replace(/\D/g, '').slice(-8);
+export const parDup = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
+/** Pares de alunos que parecem ser a mesma pessoa, com o motivo. */
+export function possiveisDuplicados(db: DB): { a: Student; b: Student; motivo: string }[] {
+  const ign = new Set(db.settings.naoDuplicados ?? []);
+  const l = db.students;
+  const out: { a: Student; b: Student; motivo: string }[] = [];
+  for (let i = 0; i < l.length; i++) for (let j = i + 1; j < l.length; j++) {
+    const a = l[i], b = l[j];
+    if (ign.has(parDup(a.id, b.id))) continue;
+    const pa = partes(a.nome), pb = partes(b.nome);
+    let motivo = '';
+    if (a.email && b.email && a.email.toLowerCase() === b.email.toLowerCase()) motivo = 'mesmo e-mail';
+    else if (digitos(a.tel).length === 8 && digitos(a.tel) === digitos(b.tel)) motivo = 'mesmo telefone';
+    else if (pa.join(' ') === pb.join(' ')) motivo = 'mesmo nome';
+    else if (pa.length >= 2 && pb.length >= 2 && pa[0] === pb[0] && pa[pa.length - 1] === pb[pb.length - 1]) motivo = 'mesmo primeiro e último nome';
+    else if (pa.length >= 2 && pb.length >= 2) {
+      const [m, M] = pa.length <= pb.length ? [pa, pb] : [pb, pa];
+      if (m.every((p) => M.includes(p))) motivo = 'nome contido no outro';
+    }
+    if (motivo) out.push({ a, b, motivo });
+  }
+  return out;
+}

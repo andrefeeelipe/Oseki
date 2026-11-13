@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
   const desktop = mode === 'desktop';
   return {
     base: process.env.BASE ?? './',
-    define: { 'import.meta.env.VITE_TARGET': JSON.stringify(desktop ? 'desktop' : 'mobile') },
+    define: { 'import.meta.env.VITE_TARGET': JSON.stringify(desktop ? 'desktop' : 'mobile'), __VERSAO__: JSON.stringify(new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })) },
     build: { outDir: desktop ? 'dist-desktop' : 'dist', emptyOutDir: true },
     plugins: [
       react(),

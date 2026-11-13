@@ -289,6 +289,14 @@ export async function trocarEmail(novo: string) {
   if (r.error) return r.error.message.includes('already') ? 'Este e-mail já está em uso.' : r.error.message;
   return r.data.user?.email === mail ? null : 'confirmar';
 }
+/** Junta duas fichas do mesmo aluno. Retorna mensagem de erro ou null. */
+export async function mesclarAlunos(manter: string, remover: string) {
+  if (!sb) return 'Servidor não configurado.';
+  const r = await sb.rpc('mesclar_alunos', { p_manter: manter, p_remover: remover });
+  if (r.error) return r.error.message;
+  await reload();
+  return null;
+}
 export async function sair() { if (sb) await sb.auth.signOut(); db = emptyDB(); saveCache(); setAuth('deslogado'); }
 export const logout = () => { sair(); };
 

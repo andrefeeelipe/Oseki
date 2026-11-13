@@ -109,6 +109,7 @@ export default function Perfil() {
 
         <div className="os-card os-card--flat kv" style={{ padding: '14px 16px', flexDirection: 'row' }}><span>Equipe</span><span>{db.settings.equipe}</span></div>
         <button className="os-btn os-btn--danger" onClick={() => sair()}>Sair</button>
+        <span className="t-sub" style={{ textAlign: 'center' }}>Versão {__VERSAO__}</span>
       </div>
 
       <input ref={cam} type="file" accept="image/*" capture="user" hidden onChange={(e) => onFile(e.target.files?.[0])} />

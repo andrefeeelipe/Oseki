@@ -115,6 +115,7 @@ export interface Prof {
 }
 
 export interface Settings {
+  naoDuplicados?: string[]; // pares 'idA|idB' que o professor marcou como pessoas diferentes
   academia: string;
   equipe: string;
   endereco: string;
