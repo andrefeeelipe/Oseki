@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { useDB, setFaixa, setApto, addNote, toast } from '../../data/store';
-import { ALL_BELTS, ADULTO, INFANTIL, aulaById, freq, grausTxt, grupoDe, idadeDe, metaDe, pct } from '../../data/util';
+import { useDB, setFaixa, setApto, addNote, toast, update, registrarPagamento, estornarPagamento } from '../../data/store';
+import { PLANOS, planoNome } from '../../data/seed';
+import type { PlanoId } from '../../data/types';
+import { ALL_BELTS, ADULTO, INFANTIL, aulaById, freq, grausTxt, grupoDe, idadeDe, metaDe, pct, valorDe, brl, mesAtual } from '../../data/util';
+import { Sheet, Field } from '../../ui/kit';
 import { Avatar, Belt, Chip, Setting, StatCard, SubHeader, LinkCard } from '../../ui/kit';
 import { Icon } from '../../ui/Icon';
 import { go } from '../../ui/router';
@@ -11,14 +14,14 @@ export function Alunos() {
   const db = useDB();
   const [q, setQ] = useState('');
   const [g, setG] = useState('Todos');
-  const lista = db.students.filter((s) => s.nome.toLowerCase().includes(q.toLowerCase()) && (g === 'Todos' || grupoDe(s) === g));
+  const lista = db.students.filter((s) => s.nome.toLowerCase().includes(q.toLowerCase()) && (g === 'Inativos' ? s.status === 'inativo' : s.status !== 'inativo' && (g === 'Todos' || grupoDe(s) === g))).sort((a, b) => a.nome.localeCompare(b.nome));
   return (
     <div className="scroll">
       <ProfHeader title="Alunos" />
       <div className="pad" style={{ paddingTop: 18 }}>
         <label className="sr-only" htmlFor="busca">Buscar aluno</label>
         <input id="busca" type="search" className="os-input" style={{ background: 'var(--surface)' }} placeholder="Buscar aluno" value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="scroll-x">{['Todos', 'Kids', 'Teens', 'Adulto'].map((x) => <button key={x} className="os-pill" aria-pressed={g === x} onClick={() => setG(x)}>{x}</button>)}
+        <div className="scroll-x">{['Todos', 'Kids', 'Teens', 'Adulto', 'Inativos'].map((x) => <button key={x} className="os-pill" aria-pressed={g === x} onClick={() => setG(x)}>{x}</button>)}
           <button className="os-pill" onClick={() => go('prof/x/convidar')}><Icon n="plus" size={16} />&nbsp;Convidar</button></div>
         <div className="os-list" style={{ padding: '4px 14px' }}>
           {lista.map((s) => (
@@ -31,7 +34,7 @@ export function Alunos() {
               <span className="col" style={{ alignItems: 'flex-end' }}><span className="num" style={{ fontSize: 15, fontWeight: 700 }}>{freq(db, s)}%</span><span className="t-sub" style={{ fontSize: 11 }}>freq.</span></span>
             </button>
           ))}
-          {lista.length === 0 && <div className="os-listrow"><span className="t-small muted">Nenhum aluno encontrado.</span></div>}
+          {lista.length === 0 && <div className="os-listrow"><span className="t-small muted">{db.students.length === 0 ? `Nenhum aluno ainda. Passe o código ${db.settings.codigo} para os alunos criarem a conta no app, ou use Convidar.` : 'Nenhum aluno encontrado.'}</span></div>}
         </div>
       </div>
     </div>
@@ -42,6 +45,8 @@ export function AlunoDetalhe({ sid }: { sid: string }) {
   const db = useDB();
   const s = db.students.find((x) => x.id === sid);
   const [note, setNote] = useState('');
+  const [edit, setEdit] = useState(false);
+  const [pg, setPg] = useState<null | { valor: string; via: string }>(null);
   if (!s) return <div className="scroll"><SubHeader title="Aluno" fallback="prof/alunos" /></div>;
   const meta = metaDe(db, s);
   const opts: BeltName[] = grupoDe(s) === 'Adulto' ? ADULTO : Array.from(new Set([...INFANTIL, ...ADULTO]));
@@ -89,8 +94,22 @@ export function AlunoDetalhe({ sid }: { sid: string }) {
           <LinkCard icon="star" title="Avaliação" onClick={() => go(`prof/x/avaliacao/${s.id}`)} right={<></>} />
         </div>
         <div className="row" style={{ gap: 8 }}>
-          {s.pay !== 'pago' && <Chip tone={s.pay === 'atraso' ? 'danger' : s.pay === 'analise' ? 'info' : 'warning'}>{s.pay === 'atraso' ? `Mensalidade atrasada · ${s.payDias} dias` : s.pay === 'analise' ? 'Pagamento em análise' : 'Mensalidade em aberto'}</Chip>}
           {!s.contrato.assinado && <Chip tone="info">Contrato sem assinatura</Chip>}
+        </div>
+
+        <div className="os-card" style={{ padding: 18 }}>
+          <div className="row-between"><span className="t-title">Mensalidade</span><Chip tone={s.pay === 'pago' ? 'success' : s.pay === 'atraso' ? 'danger' : s.pay === 'analise' ? 'info' : 'warning'}>{s.pay === 'pago' ? 'Em dia' : s.pay === 'atraso' ? `Atrasada · ${s.payDias} dias` : s.pay === 'analise' ? 'Aluno informou Pix' : 'Em aberto'}</Chip></div>
+          <div className="kv" style={{ padding: '6px 0' }}><span>{planoNome(s.plano)}{s.fundador ? ` · fundador #${s.fundador}` : ''}</span><span>{brl(valorDe(db, s))}</span></div>
+          {s.pay !== 'pago' && <button className="os-btn os-btn--primary" onClick={() => setPg({ valor: String(valorDe(db, s) || ''), via: 'Pix' })}>Registrar pagamento do mês</button>}
+          {(s.pagamentos ?? []).slice(0, 4).map((p) => <div key={p.mes} className="kv" style={{ padding: '8px 0', fontSize: 13 }}><span>{p.mes.split('-').reverse().join('/')} · {p.via}</span><span>{brl(p.valor)}{p.mes === mesAtual() && <button className="link" style={{ marginLeft: 10, fontSize: 12, color: 'var(--danger)' }} onClick={() => { if (confirm('Desfazer o pagamento deste mês?')) { estornarPagamento(s.id, p.mes); toast('Pagamento desfeito.'); } }}>desfazer</button>}</span></div>)}
+        </div>
+
+        <div className="os-card" style={{ padding: 18 }}>
+          <div className="row-between"><span className="t-title">Dados do aluno</span><button className="link" onClick={() => setEdit(true)}>Editar</button></div>
+          <div className="kv" style={{ padding: '8px 0' }}><span>Nascimento</span><span>{s.nasc || '—'}</span></div>
+          <div className="kv" style={{ padding: '8px 0' }}><span>Telefone</span><span>{s.tel || '—'}</span></div>
+          <div className="kv" style={{ padding: '8px 0' }}><span>Responsável</span><span>{s.resp || '—'}</span></div>
+          <div className="kv" style={{ padding: '8px 0' }}><span>E-mail</span><span>{s.email || '—'}</span></div>
         </div>
 
         <div className="os-card" style={{ padding: 18 }}>
@@ -99,8 +118,37 @@ export function AlunoDetalhe({ sid }: { sid: string }) {
           <button className="os-btn os-btn--primary" disabled={!note.trim()} onClick={() => { addNote(s.id, note.trim()); setNote(''); toast('Anotação salva e enviada ao app do aluno.'); }}>Salvar anotação</button>
           {s.notes.map((n, i) => <div key={i} className="divider col" style={{ paddingTop: 12, gap: 4 }}><span className="t-sub">{n.d}</span><span className="t-body">{n.t}</span></div>)}
         </div>
+        <button className="os-btn os-btn--danger" onClick={() => { const inat = s.status === 'inativo'; if (confirm(inat ? 'Reativar este aluno?' : 'Marcar este aluno como inativo? Ele some das listas, mas o histórico fica guardado.')) { update((d) => { d.students.find((x) => x.id === s.id)!.status = inat ? 'ativo' : 'inativo'; }); toast(inat ? 'Aluno reativado.' : 'Aluno marcado como inativo.'); } }}>{s.status === 'inativo' ? 'Reativar aluno' : 'Marcar como inativo'}</button>
         {s.tel && <a className="os-btn os-btn--secondary" href={`https://wa.me/55${s.tel.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"><Icon n="send" size={18} />Mensagem no WhatsApp</a>}
       </div>
+      {edit && <EditAluno sid={s.id} onClose={() => setEdit(false)} />}
+      {pg && (
+        <Sheet title="Registrar pagamento" onClose={() => setPg(null)}>
+          <Field label="Valor (R$)"><input className="os-input" inputMode="decimal" value={pg.valor} onChange={(e) => setPg({ ...pg, valor: e.target.value })} /></Field>
+          <div className="scroll-x">{['Pix', 'Dinheiro', 'Cartão', 'Transferência'].map((v) => <button key={v} className="os-pill" aria-pressed={pg.via === v} onClick={() => setPg({ ...pg, via: v })}>{v}</button>)}</div>
+          <button className="os-btn os-btn--primary os-btn--block" onClick={() => { registrarPagamento(s.id, Number(pg.valor.replace(',', '.')) || 0, pg.via); setPg(null); toast('Pagamento registrado.'); }}>Confirmar pagamento</button>
+        </Sheet>
+      )}
     </div>
+  );
+}
+
+export function EditAluno({ sid, onClose }: { sid: string; onClose: () => void }) {
+  const db = useDB();
+  const s = db.students.find((x) => x.id === sid)!;
+  const [f, setF] = useState({ nome: s.nome, nasc: s.nasc, tel: s.tel, resp: s.resp, email: s.email, turma: s.turma, plano: s.plano as PlanoId });
+  return (
+    <Sheet title="Editar aluno" onClose={onClose}>
+      <div className="col-2" style={{ maxHeight: '60dvh', overflowY: 'auto', paddingBottom: 4 }}>
+        <Field label="Nome"><input className="os-input" value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></Field>
+        <Field label="Nascimento"><input className="os-input" placeholder="dd/mm/aaaa" value={f.nasc} onChange={(e) => setF({ ...f, nasc: e.target.value })} /></Field>
+        <Field label="Telefone"><input className="os-input" inputMode="tel" value={f.tel} onChange={(e) => setF({ ...f, tel: e.target.value })} /></Field>
+        <Field label="Responsável"><input className="os-input" value={f.resp} onChange={(e) => setF({ ...f, resp: e.target.value })} /></Field>
+        <Field label="E-mail"><input className="os-input" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
+        <Field label="Turma"><select className="select" value={f.turma} onChange={(e) => setF({ ...f, turma: e.target.value })}><option value="">Sem turma</option>{db.aulas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}</select></Field>
+        <Field label="Plano"><select className="select" value={f.plano} onChange={(e) => setF({ ...f, plano: e.target.value as PlanoId })}>{PLANOS.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></Field>
+      </div>
+      <button className="os-btn os-btn--primary os-btn--block" onClick={() => { if (!f.nome.trim()) { toast('Informe o nome.'); return; } update((d) => { Object.assign(d.students.find((x) => x.id === sid)!, { ...f, nome: f.nome.trim() }); }); toast('Dados do aluno salvos.'); onClose(); }}>Salvar</button>
+    </Sheet>
   );
 }

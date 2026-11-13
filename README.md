@@ -1,71 +1,75 @@
-# Oseki BJJ — app
+# Oseki BJJ
 
-App de jiu-jitsu da **Marangoni BJJ / Oseki BJJ**: presença, faixa e evolução de cada aluno, no tatame e no celular.
-Feito a partir dos wireframes e do design system **Oseki App** (cores, tipografia, faixa, componentes `os-`).
+App da **Marangoni BJJ / Oseki BJJ**: presença, faixa, evolução e mensalidade de cada aluno.
+São dois produtos que usam os mesmos dados, em tempo real:
 
-## Testar agora
+| Produto | Para quem | Onde baixar |
+|---|---|---|
+| **App do celular** | Alunos e professores | Android: `OsekiBJJ.apk` em [Releases](../../releases/latest) · iPhone: abrir https://andrefeeelipe.github.io/Oseki/ no Safari → Compartilhar → *Adicionar à Tela de Início* |
+| **Painel da academia** | Professores e administradores, no computador | Windows: `OsekiBJJ-Painel-Setup.exe` em [Releases](../../releases/latest) · Navegador: https://andrefeeelipe.github.io/Oseki/painel/ |
 
-| Onde | Como |
-|---|---|
-| **Navegador (qualquer celular ou PC)** | https://andrefeeelipe.github.io/Oseki/ — no celular, use "Adicionar à tela inicial" para virar app. |
-| **Android (APK)** | Baixe `OsekiBJJ.apk` em [Releases → última versão](../../releases/latest) e instale (permita "instalar apps desconhecidos"). |
-| **Painel desktop** | https://andrefeeelipe.github.io/Oseki/#/painel — código de verificação na demo: `123456`. |
+## Primeiro uso
 
-Na tela de entrada, use **Entrar como aluno** ou **Entrar como professor** (sem cadastro).
-Contas de teste: `lucas@demo.oseki` (aluno) e `prof@demo.oseki` (professor), qualquer senha. Código da academia: `OSEKI-2026`.
+1. **Primeiro professor (administrador):** no app ou no painel, toque em **Criar conta**, escolha **Sou professor** e preencha. A primeira conta de professor vira administradora automaticamente, sem precisar de código.
+2. Em **Mais → Dados da academia**, preencha **valores dos planos**, **dia de vencimento**, **chave Pix**, endereço e WhatsApp. Ali também ficam os **códigos de cadastro**:
+   - **Código dos alunos** (padrão `OSEKI-2026`): passe para os alunos criarem a conta.
+   - **Código de professor**: passe só para outros professores.
+3. Em **Mais → Área de presença**, estando na academia, toque em **Usar minha localização atual**. Isso liga a presença automática por GPS.
+4. Confira a **Grade de aulas** (Mais → Grade): as turmas iniciais vieram dos wireframes. Ajuste horários, dias e professor.
+5. **Alunos:** cada um baixa o app, toca em **Criar conta** e usa o código dos alunos. Outra opção é o professor usar **Convidar** (cria a ficha e manda o convite pelo WhatsApp).
 
-> **Importante:** nesta versão os dados ficam salvos **no próprio aparelho** (demonstração).
-> Aluno, professor e painel compartilham os dados quando usados no mesmo aparelho/navegador
-> (dá para abrir aluno numa aba e professor em outra). Para sincronizar entre celulares diferentes,
-> o próximo passo é ligar um backend (ex.: Supabase ou Firebase) — veja "Próximos passos".
-> Em **Perfil → Restaurar dados de demonstração** tudo volta ao exemplo.
+## O que dá para editar sem programar
 
-## O que já funciona
+Tudo isso se faz dentro do app ou do painel:
+- **Nomes:** o seu em *Meu perfil*; o dos alunos na ficha do aluno → *Editar*.
+- **Valores dos planos, vencimento e chave Pix:** *Dados da academia*.
+- **Mensalidades:** *Financeiro*. Ali se vê quem está em dia, os valores, e se registra ou confirma pagamentos.
+- **Turmas, horários e professores:** *Grade*.
+- **Faixas, graus, anotações e graduação:** ficha do aluno e *Graduação*.
+- **Técnicas e vídeos:** *Publicar técnica* (cole um link do YouTube).
+- **Avisos para os alunos:** *Comunicado*.
 
-**Aluno** — Início (presença automática por GPS, aula de hoje, progresso, posição da semana) · Presença (calendário, marcar dia, status presente/pendente/recusada) · Faixa (graus, meta, anotações, histórico) · Perfil (foto pela câmera/galeria, dados, presença automática, notificações) · Grade semanal · Check-in por QR Code (câmera real) · Notificações · Evolução · Biblioteca de técnicas · Exame de faixa · Carteirinha · Mensalidade (Pix) · Regras · Planos e Aluno Fundador · Meu contrato · Ranking.
+Os dados também podem ser vistos e corrigidos direto no banco: Supabase → **Table Editor**.
 
-**Professor** — Chamada (marcar/desfazer, aprovar) · Aprovações · Alunos e ficha (faixa, graus, apto para exame, anotações) · Painel · Graduação · Comunicado · Área de presença (define o local da academia pelo GPS do celular) · Dados da academia · Grade e nova aula · QR Code da aula (muda a cada 30 s) · Plano de aula · Convidar aluno (WhatsApp) · Histórico · Avaliação técnica · Requisitos por faixa · Publicar técnica · Financeiro · Relatórios (exporta planilha) · Contratos · Controle de acesso · Perfil.
+## Mudar o código do app com IA (sem o Claude)
 
-**Painel desktop (admin)** — Login com 2 etapas · Painel · Presenças do dia · Aprovações · Alunos · Ficha · Graduação · Grade · Financeiro · Ranking · Planos e fundador · Contratos · Conteúdo por plano · Controle de acesso · Configurações.
+**Jules (Google, incluso no Gemini / Google AI Pro):** é o caminho mais fácil.
+1. Entre em https://jules.google.com com a conta Google e conecte o GitHub.
+2. Escolha o repositório **Oseki** e descreva a mudança em português. Exemplo:
+   *"Na tela Minha faixa do aluno, mostre também a data da última graduação. Siga o design system descrito no README e em src/styles."*
+3. O Jules faz a alteração e abre um **pull request**. Revise e clique em **Merge**.
+4. Em poucos minutos o GitHub publica o site e gera o APK e o instalador novos sozinho (aba **Actions**).
 
-### Testar a presença por GPS de verdade
-1. Entre como **professor** → **Mais → Área de presença** → **Usar minha localização atual** (estando na academia).
-2. Entre como **aluno** no horário de uma aula da turma dele (30 min antes até 15 min após o início).
-3. Ao entrar no raio, a presença é registrada sozinha. Fora da academia, use **Simular chegada**.
-
-## Como contribuir (Diego)
-
-Tudo que for enviado para a branch `main` publica o site e gera um APK novo sozinho (aba **Actions**).
-
-**Pelo navegador, sem instalar nada:** abra o repositório, aperte a tecla `.` (ponto) para abrir o editor no navegador, edite e faça *Commit & Push*.
-
-**No computador:**
-```bash
-git clone https://github.com/andrefeeelipe/Oseki.git
-cd Oseki
-npm install
-npm run dev        # abre em http://localhost:5173
-```
+**ChatGPT, Gemini, Claude Free ou Grok, no modo manual:**
+1. No repositório, aperte a tecla `.` para abrir o editor no navegador.
+2. Abra o arquivo da tela (lista abaixo), copie e cole na IA com o pedido.
+3. Cole de volta o código que a IA devolver, clique em *Source Control → Commit & Push*.
 
 ### Onde fica cada coisa
 ```
-src/
-  styles/tokens.css      cores, fontes, espaços (design system Oseki App)
-  styles/bundle.css      componentes os- (botão, chip, faixa, card…)
-  styles/app.css         layout das telas
-  data/seed.ts           alunos, turmas e dados de exemplo
-  data/store.ts          "banco" local e ações (marcar presença, aprovar, graduar…)
-  data/util.ts           datas, faixas, frequência, GPS
-  ui/kit.tsx             componentes React (Belt, Avatar, Calendar, TabBar…)
-  screens/aluno/         telas do aluno
-  screens/prof/          telas do professor
-  screens/desk/          painel desktop
+src/screens/aluno/        telas do aluno (Inicio, Presenca, Faixa, Perfil, Subs, Planos)
+src/screens/prof/         telas do professor (Chamada, Aprovacoes, Alunos, Subs, Subs2)
+src/screens/desk/Desk.tsx painel do computador
+src/screens/Login.tsx     entrar e criar conta
+src/data/store.ts         ligação com o banco de dados
+src/data/util.ts          datas, faixas, frequência, mensalidade
+src/styles/               cores e componentes do design system Oseki App
+supabase/schema.sql       estrutura e regras de segurança do banco
+electron/main.cjs         janela do instalador Windows
 ```
-Regras do design system: textos em português, títulos em caixa alta (Barlow Condensed), faixa sempre desenhada,
-um destaque vermelho por tela, valores sem definição entre colchetes (`R$ [VALOR]`), sem emoji na interface.
+Regras de design: português, títulos em caixa alta (Barlow Condensed), faixa sempre desenhada, um destaque vermelho por tela, sem emoji.
 
-## Próximos passos sugeridos
-- Backend com login real e sincronização entre aparelhos (Supabase/Firebase): trocar `src/data/store.ts` mantendo as mesmas funções.
-- Notificações push reais.
-- Pix real (integração com o banco da academia) e preços definidos.
-- Endereço e WhatsApp reais da academia.
+## Banco de dados (Supabase)
+
+- O projeto fica na conta do Supabase da academia, no plano gratuito (não pede cartão).
+- `supabase/schema.sql` cria as tabelas e as regras de segurança. Pode rodar de novo no **SQL Editor** sem perder dados.
+- Em **Authentication → Sign In / Providers → Email**, deixe *Confirm email* **desligado** para o aluno entrar logo após criar a conta. Se preferir ligar, o aluno recebe um e-mail de confirmação antes do primeiro acesso.
+- O endereço e a chave pública ficam em `src/config.ts`.
+- Projetos gratuitos pausam após 7 dias sem uso. Com aula toda semana isso não acontece. Se pausar, é só entrar no Supabase e clicar em *Restore*.
+
+## Rodar no computador (para quem programa)
+```bash
+npm install
+npm run dev            # app do celular em http://localhost:5173
+npm run desktop        # painel em janela (Electron)
+```

@@ -1,0 +1,98 @@
+name: Apps (Android e Windows)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apps
+  cancel-in-progress: true
+
+env:
+  VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+  VITE_SUPABASE_KEY: ${{ vars.SUPABASE_KEY }}
+
+jobs:
+  android:
+    name: App do celular (APK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm ci
+        env: { ELECTRON_SKIP_BINARY_DOWNLOAD: '1' }
+      - run: npm run build
+        env: { BASE: ./ }
+      - name: Projeto Android (Capacitor)
+        run: |
+          npx cap add android
+          npx cap sync android
+      - name: Permissões (localização e câmera)
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-feature android:name="android.hardware.location.gps" android:required="false" />#' $M
+      - name: Ícone
+        run: |
+          sudo apt-get install -y librsvg2-bin >/dev/null
+          for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            n=${d%%:*}; s=${d##*:}; dir=android/app/src/main/res/mipmap-$n
+            rsvg-convert -w $s -h $s public/icon.svg -o $dir/ic_launcher.png
+            cp $dir/ic_launcher.png $dir/ic_launcher_round.png
+            cp $dir/ic_launcher.png $dir/ic_launcher_foreground.png
+          done
+          rm -rf android/app/src/main/res/mipmap-anydpi-v26
+      - name: Compilar APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - run: cp android/app/build/outputs/apk/debug/app-debug.apk OsekiBJJ.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: apk, path: OsekiBJJ.apk }
+
+  windows:
+    name: Painel (instalador Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run dist:win
+        env: { BASE: ./ }
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: release/OsekiBJJ-Painel-Setup.exe }
+
+  release:
+    name: Publicar na página de downloads
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - name: Mover a tag para este commit
+        run: |
+          git tag -f ultima-versao
+          git push -f origin ultima-versao
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ultima-versao
+          name: Oseki BJJ · última versão
+          make_latest: true
+          files: |
+            out/OsekiBJJ.apk
+            out/OsekiBJJ-Painel-Setup.exe
+          body: |
+            **App do celular (alunos e professores)**
+            - Android: baixe **OsekiBJJ.apk** e instale (permita "instalar apps desconhecidos").
+            - iPhone: abra https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/ no Safari → Compartilhar → "Adicionar à Tela de Início".
+
+            **Painel da academia (computador)**
+            - Windows: baixe **OsekiBJJ-Painel-Setup.exe** e instale. Se o Windows avisar "app não reconhecido", clique em "Mais informações" → "Executar assim mesmo".
+            - Também abre no navegador: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/painel/

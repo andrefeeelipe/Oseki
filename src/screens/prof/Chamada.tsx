@@ -7,7 +7,7 @@ import { Icon } from '../../ui/Icon';
 import { go } from '../../ui/router';
 import { ProfHeader } from './Header';
 
-export const rosterDe = (db: DB, a: Aula) => db.students.filter((s) => s.turma === a.id || a.grupo === 'Todos' || grupoDe(s) === a.grupo || db.att.some((x) => x.sid === s.id && x.classId === a.id));
+export const rosterDe = (db: DB, a: Aula) => db.students.filter((s) => s.status !== 'inativo').filter((s) => s.turma === a.id || a.grupo === 'Todos' || grupoDe(s) === a.grupo || db.att.some((x) => x.sid === s.id && x.classId === a.id));
 
 export default function Chamada() {
   const db = useDB();

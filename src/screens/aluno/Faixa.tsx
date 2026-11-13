@@ -14,7 +14,7 @@ export default function Faixa() {
         <Belt belt={me.belt} graus={me.graus} size="lg" />
         <div className="col" style={{ gap: 2 }}>
           <span style={{ fontSize: 20, fontWeight: 700 }}>{me.belt}</span>
-          <span className="t-small on-night-muted">{grausTxt(me.graus)} · graduado por Prof. Marangoni</span>
+          <span className="t-small on-night-muted">{grausTxt(me.graus)} · {db.settings.equipe}</span>
         </div>
       </div>
       <div className="pad" style={{ paddingTop: 18 }}>

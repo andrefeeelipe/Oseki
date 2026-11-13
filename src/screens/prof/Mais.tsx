@@ -1,4 +1,4 @@
-import { useDB, resetDemo, toast } from '../../data/store';
+import { useDB } from '../../data/store';
 import { LinkCard, Overline } from '../../ui/kit';
 import { go } from '../../ui/router';
 import { ProfHeader } from './Header';
@@ -23,8 +23,7 @@ export default function Mais() {
             </div>
           </div>
         ))}
-        <LinkCard icon="monitor" title="Painel desktop" sub="Abre a versão para computador" onClick={() => go('painel/painel')} />
-        <button className="link" style={{ alignSelf: 'center', fontWeight: 600, color: 'var(--ink-subtle)', fontSize: 12, padding: 8 }} onClick={() => { if (confirm('Apagar tudo que foi feito no teste e voltar aos dados de exemplo?')) { resetDemo(); toast('Dados de demonstração restaurados.'); } }}>Restaurar dados de demonstração</button>
+        <LinkCard icon="monitor" title="Painel no computador" sub="Baixe o instalador para Windows na página do app" onClick={() => window.open('https://github.com/andrefeeelipe/Oseki/releases/latest', '_blank')} />
       </div>
     </div>
   );

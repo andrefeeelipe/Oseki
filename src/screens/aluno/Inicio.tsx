@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { marcarPresenca, toast } from '../../data/store';
+import { marcarPresenca, toast, update } from '../../data/store';
 import { curta, distTxt, freqMes, grausTxt, iso, metaDe, naJanela, pct, primeiro, aulasDoAluno, today } from '../../data/util';
 import { Avatar, Belt, Chip, LinkCard, Overline, StatCard, attChip } from '../../ui/kit';
 import { Icon } from '../../ui/Icon';
@@ -32,13 +32,6 @@ export default function Inicio() {
     toast(r === 'ok' ? `Você chegou na academia. Presença registrada · ${aula.nome}.` : 'Você chegou. Presença enviada para o professor aprovar.');
   }, [dist]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const simular = () => {
-    const aula = aulasDoAluno(db, me).find((a) => a.dias.includes(today().getDay()));
-    if (!aula) { toast('Hoje não tem aula da sua turma. Tente num dia de treino.'); return; }
-    const r = marcarPresenca(me.id, aula.id, hoje, 'gps');
-    toast(r === 'ok' ? 'Presença registrada por GPS.' : 'Chegada enviada para aprovação.');
-  };
-
   const marcar = () => {
     if (!prox) return;
     marcarPresenca(me.id, prox.aula.id, hoje, 'app');
@@ -70,6 +63,19 @@ export default function Inicio() {
       </div>
 
       <div className="pad" style={{ paddingTop: 20 }}>
+        {!me.turma && (
+          <div className="os-card" style={{ padding: 18, border: '2px solid var(--brand-ink)' }}>
+            <span className="t-title">Qual é a sua turma?</span>
+            <span className="t-small muted">Escolha para ver suas aulas e marcar presença. Dá para trocar depois no Perfil.</span>
+            <div className="col-2">
+              {db.aulas.filter((a) => a.grupo !== 'Todos').map((a) => (
+                <button key={a.id} className="os-btn os-btn--quiet" style={{ justifyContent: 'space-between' }} onClick={() => { update((d) => { d.students.find((x) => x.id === me.id)!.turma = a.id; }); toast(`Turma ${a.nome} escolhida.`); }}>
+                  <span>{a.nome}</span><span className="t-sub">{a.ini} · {a.dias.map((x) => ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][x]).join('/')}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {/* Presença automática */}
         {gpsAtt ? (
           <div className="success-card">
@@ -89,7 +95,6 @@ export default function Inicio() {
               </div>
             </div>
             <p className="t-small muted" style={{ margin: 0 }}>Ao entrar no raio de {set.raio} m da academia no horário da sua aula, a presença é registrada sozinha.</p>
-            <button className="os-btn os-btn--dashed" onClick={simular}>Simular chegada na academia</button>
           </div>
         ) : (
           <div className="os-card row" style={{ padding: 18, flexDirection: 'row' }}>

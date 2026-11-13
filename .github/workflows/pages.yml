@@ -1,4 +1,4 @@
-name: Publicar site (GitHub Pages)
+name: Site (GitHub Pages)
 
 on:
   push:
@@ -14,25 +14,27 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+env:
+  VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+  VITE_SUPABASE_KEY: ${{ vars.SUPABASE_KEY }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
+        with: { node-version: 22, cache: npm }
       - run: npm ci
-      - run: npm run build
-        env:
-          BASE: /${{ github.event.repository.name }}/
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
+        env: { ELECTRON_SKIP_BINARY_DOWNLOAD: '1' }
+      - name: App do celular (raiz do site)
+        run: npm run build
+        env: { BASE: '/${{ github.event.repository.name }}/' }
+      - name: Painel (em /painel/)
+        run: npm run build:desktop && mv dist-desktop dist/painel
+        env: { BASE: '/${{ github.event.repository.name }}/painel/' }
       - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
+        with: { path: dist }
   deploy:
     needs: build
     runs-on: ubuntu-latest

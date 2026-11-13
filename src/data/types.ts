@@ -12,6 +12,7 @@ export interface Note { d: string; t: string; by: string }
 export interface HistItem { t: string; d: string }
 
 export type PayStatus = 'pago' | 'aberto' | 'atraso' | 'analise';
+export interface Pagamento { mes: string; valor: number; data: string; via: string }
 export type PlanoId = 'avulso' | 'mensal' | 'trimestral' | 'semestral' | 'anual';
 export type TecnicaNivel = 0 | 1 | 2; // não vista · em treino · aprovada
 
@@ -35,8 +36,11 @@ export interface Student {
   plano: PlanoId;
   fundador?: number;
   mesesEmDia: number;
-  pay: PayStatus;
-  payDias?: number; // dias de atraso
+  pay: PayStatus; // calculado a partir de pagamentos (não é salvo)
+  payDias?: number; // dias de atraso (calculado)
+  pagamentos: Pagamento[];
+  payInformado?: string; // mês AAAA-MM que o aluno disse ter pago
+  status?: 'ativo' | 'inativo';
   contrato: { assinado: boolean; vig: string; renova: boolean; status: 'ativo' | 'vence' | 'vencido' | 'assin' };
   tecnicas: Record<string, TecnicaNivel>;
   geoAuto: boolean;
@@ -94,6 +98,17 @@ export interface Tecnica {
 
 export interface Access { id: string; h: string; nome: string; meio: string; motivo: string; bloq: boolean; liberado?: boolean }
 
+export interface Prof {
+  id: string;
+  role: 'prof' | 'admin';
+  nome: string;
+  email: string;
+  tel: string;
+  belt: BeltName;
+  graus: number;
+  foto?: string;
+}
+
 export interface Settings {
   academia: string;
   equipe: string;
@@ -105,7 +120,7 @@ export interface Settings {
   raio: number;
   revisarGps: boolean;
   metodos: { gps: boolean; qr: boolean; app: boolean };
-  proximoExame: string;
+  proximoExame: string | null;
   planoAula: { tecnica: string; passos: { t: string; d: string; min: number; done: boolean }[] };
   requisitos: Record<string, number>;
   fundadorVagas: number;
@@ -113,15 +128,20 @@ export interface Settings {
   fundadorTolerancia: number;
   conteudo: Record<string, Record<PlanoId, boolean>>;
   rankingPublicado: boolean;
-  dark?: boolean;
+  precos: Record<PlanoId, number>;
+  vencimento: number;
+  chavePix: string;
 }
 
-export interface Session { role: 'aluno' | 'prof' | 'admin'; sid?: string }
+export interface Session { role: 'aluno' | 'prof' | 'admin'; sid?: string; email?: string }
+export interface Segredos { codigo_aluno: string; codigo_prof: string }
 
 export interface DB {
   version: number;
   seededAt: string;
   students: Student[];
+  profs: Prof[];
+  segredos?: Segredos;
   att: Attendance[];
   aulas: Aula[];
   notifs: Notif[];

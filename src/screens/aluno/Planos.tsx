@@ -6,7 +6,7 @@ import { Sub, Chip, Switch } from '../../ui/kit';
 import { Icon } from '../../ui/Icon';
 import { go } from '../../ui/router';
 import { useMe } from './common';
-import { addDays, br, today } from '../../data/util';
+import { addDays, br, today, brl, valorDe } from '../../data/util';
 
 export function Planos() {
   const { db, me } = useMe();
@@ -25,7 +25,6 @@ export function Planos() {
       if (plan !== 'avulso' && !s.fundador && vagas > 0) s.fundador = Math.max(0, ...d.students.map((x) => x.fundador ?? 0)) + 1;
       const fim = addDays(today(), (p.meses || 1) * 30);
       s.contrato = { assinado: false, vig: `até ${br(fim)}`, renova: plan !== 'avulso', status: 'assin' };
-      s.pay = 'aberto';
       notify(d, 'prof', `${s.nome} contratou o plano ${p.nome.toLowerCase()}`, 'Contrato aguardando assinatura do aluno.', 'info');
     });
     setFeito(true);
@@ -64,7 +63,7 @@ export function Planos() {
               <span className="row" style={{ gap: 8 }}><span style={{ fontSize: 16, fontWeight: 700 }}>{x.nome}</span>{x.id === 'anual' && <span className="os-seal os-seal--destaque">Melhor valor</span>}{me.plano === x.id && <Chip tone="info">Atual</Chip>}</span>
               <span className="t-sub">{x.desc}</span>
             </span>
-            <span className="col" style={{ alignItems: 'flex-end' }}><span style={{ fontSize: 15, fontWeight: 700 }}>R$ [VALOR]</span><span className="t-sub" style={{ fontSize: 11 }}>{x.per}</span></span>
+            <span className="col" style={{ alignItems: 'flex-end' }}><span style={{ fontSize: 15, fontWeight: 700 }}>{brl(set.precos?.[x.id] ?? 0)}</span><span className="t-sub" style={{ fontSize: 11 }}>{x.per}</span></span>
           </button>
         );
       })}
@@ -93,7 +92,7 @@ export function Contrato() {
       <div className="os-list">
         <div className="kv"><span>Plano</span><span>{planoNome(s.plano)}</span></div>
         <div className="kv"><span>Vigência</span><span>{s.contrato.vig}</span></div>
-        <div className="kv"><span>Próxima cobrança</span><span>15/{String(today().getMonth() + 2 > 12 ? 1 : today().getMonth() + 2).padStart(2, '0')} · R$ [VALOR]</span></div>
+        <div className="kv"><span>Próxima cobrança</span><span>dia {set.vencimento || 15} · {brl(valorDe(db, s))}</span></div>
         <div className="setting"><div className="col"><span style={{ fontSize: 14, fontWeight: 600 }}>Renovação automática</span><span className="t-sub">Renova no fim da vigência</span></div><Switch on={s.contrato.renova} onChange={sw} label="Renovação automática" /></div>
       </div>
       <div className="os-card row" style={{ flexDirection: 'row', gap: 14 }}>

@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { useDB, update, toast, graduar, enviarAviso, nextStep } from '../../data/store';
+import { useDB, update, toast, graduar, enviarAviso, nextStep, meuNome } from '../../data/store';
 import { addDays, aulasDoDia, aulaById, curta, freq, grupoDe, iso, metaDe, presencas, today, WD, primeiro, uid } from '../../data/util';
 import { Sub, Avatar, Bars, Chip, Overline, Setting, Field, Stepper, Belt } from '../../ui/kit';
 import { Icon, Logo } from '../../ui/Icon';
 import { go } from '../../ui/router';
+import { PLANOS } from '../../data/seed';
 import { qrPayload, slotNow } from '../shared/qr';
 import { rosterDe } from './Chamada';
 
 /* E12 · Painel do professor */
 export function Painel() {
   const db = useDB();
-  const ativos = db.students.filter((s) => !s.convidado);
+  const ativos = db.students.filter((s) => s.status !== 'inativo');
   const media = Math.round(ativos.reduce((a, s) => a + freq(db, s), 0) / (ativos.length || 1));
   const ini = addDays(today(), -today().getDay());
   const semana = Array.from({ length: 7 }, (_, i) => { const d = addDays(ini, i); return { l: WD[d.getDay()], v: db.att.filter((x) => x.date === iso(d) && x.status === 'ok').length }; });
@@ -163,29 +164,65 @@ export function AreaGeo() {
 export function Academia() {
   const db = useDB();
   const s = db.settings;
-  const [f, setF] = useState({ academia: s.academia, equipe: s.equipe, endereco: s.endereco, whatsapp: s.whatsapp, codigo: s.codigo });
+  const admin = db.session?.role === 'admin';
+  const [f, setF] = useState({ academia: s.academia, equipe: s.equipe, endereco: s.endereco, whatsapp: s.whatsapp, chavePix: s.chavePix ?? '', vencimento: s.vencimento ?? 15, proximoExame: s.proximoExame ?? '' });
+  const [precos, setPrecos] = useState<Record<string, string>>(() => Object.fromEntries(PLANOS.map((p) => [p.id, s.precos?.[p.id] ? String(s.precos[p.id]).replace('.', ',') : ''])));
+  const [cod, setCod] = useState({ codigo_aluno: db.segredos?.codigo_aluno ?? s.codigo, codigo_prof: db.segredos?.codigo_prof ?? '' });
+  const salvar = () => {
+    update((d) => {
+      Object.assign(d.settings, { ...f, proximoExame: f.proximoExame || null, codigo: cod.codigo_aluno.trim().toUpperCase() });
+      d.settings.precos = Object.fromEntries(PLANOS.map((p) => [p.id, Number((precos[p.id] || '0').replace(/\./g, '').replace(',', '.')) || 0])) as typeof d.settings.precos;
+      if (d.segredos) d.segredos = { codigo_aluno: cod.codigo_aluno.trim().toUpperCase(), codigo_prof: cod.codigo_prof.trim().toUpperCase() };
+    });
+    toast('Dados da academia salvos.');
+  };
   return (
-    <Sub title="Academia" sub="Dados e equipe" fallback="prof/mais" admin>
+    <Sub title="Academia" sub="Dados, valores e equipe" fallback="prof/mais" admin>
       <div className="os-card" style={{ alignItems: 'center' }}>
         <div style={{ width: 72, height: 72, borderRadius: 20, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-control)' }}><Logo size={44} /></div>
-        <button className="os-btn os-btn--quiet os-btn--sm" onClick={() => toast('Na demonstração o logo é fixo.')}>Trocar logo</button>
         <span className="t-title">{f.academia}</span><span className="t-sub">{f.equipe}</span>
       </div>
       <Field label="Nome"><input className="os-input" value={f.academia} onChange={(e) => setF({ ...f, academia: e.target.value })} /></Field>
       <Field label="Equipe"><input className="os-input" value={f.equipe} onChange={(e) => setF({ ...f, equipe: e.target.value })} /></Field>
-      <Field label="Endereço"><input className="os-input" value={f.endereco} onChange={(e) => setF({ ...f, endereco: e.target.value })} /></Field>
-      <Field label="WhatsApp"><input className="os-input" value={f.whatsapp} onChange={(e) => setF({ ...f, whatsapp: e.target.value })} /></Field>
-      <Field label="Código da academia"><input className="os-input os-input--code" value={f.codigo} onChange={(e) => setF({ ...f, codigo: e.target.value.toUpperCase() })} /></Field>
-      <div className="grid-3">
-        {[[db.aulas.length, 'turmas'], [2, 'professores'], [db.students.length, 'alunos']].map(([v, l]) => <div key={l as string} className="os-stat" style={{ padding: 12 }}><span className="os-stat__value" style={{ fontSize: 26 }}>{v}</span><span className="os-stat__label">{l}</span></div>)}
-      </div>
-      <Overline>Equipe</Overline>
+      <Field label="Endereço"><input className="os-input" value={f.endereco} onChange={(e) => setF({ ...f, endereco: e.target.value })} placeholder="Rua, número, bairro, cidade" /></Field>
+      <Field label="WhatsApp"><input className="os-input" inputMode="tel" value={f.whatsapp} onChange={(e) => setF({ ...f, whatsapp: e.target.value })} /></Field>
+      <Field label="Data do próximo exame de faixa"><input className="os-input" type="date" value={f.proximoExame} onChange={(e) => setF({ ...f, proximoExame: e.target.value })} /></Field>
+
+      <Overline>Valores dos planos (por mês)</Overline>
       <div className="os-list">
-        {[['Prof. Marangoni', 'Faixa preta · administrador'], ['Prof. Oseki', 'Faixa preta · professor']].map(([n, d]) => (
-          <div key={n} className="os-listrow"><Avatar s={{ nome: n.replace('Prof. ', 'P '), belt: 'Preta' }} /><span className="os-listrow__body"><span className="os-listrow__title">{n}</span><span className="os-listrow__meta">{d}</span></span></div>
+        {PLANOS.map((p) => (
+          <div key={p.id} className="os-listrow">
+            <span className="os-listrow__body"><span className="os-listrow__title">{p.nome}</span><span className="os-listrow__meta">{p.per}</span></span>
+            <span className="t-sub">R$</span>
+            <input className="os-input" style={{ width: 110, textAlign: 'right' }} inputMode="decimal" aria-label={`Valor do plano ${p.nome}`} placeholder="0,00" value={precos[p.id]} onChange={(e) => setPrecos({ ...precos, [p.id]: e.target.value })} />
+          </div>
         ))}
       </div>
-      <button className="os-btn os-btn--primary os-btn--block" onClick={() => { update((d) => Object.assign(d.settings, f)); toast('Dados da academia salvos.'); }}>Salvar dados</button>
+      <div className="grid-2">
+        <Field label="Vencimento (dia do mês)"><input className="os-input" type="number" min={1} max={28} value={f.vencimento} onChange={(e) => setF({ ...f, vencimento: Math.min(28, Math.max(1, Number(e.target.value) || 1)) })} /></Field>
+        <Field label="Desconto fundador"><input className="os-input" value={`${s.fundadorDesconto}%`} disabled /></Field>
+      </div>
+      <Field label="Chave Pix (aparece para o aluno pagar)"><input className="os-input os-input--code" value={f.chavePix} onChange={(e) => setF({ ...f, chavePix: e.target.value })} placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória" /></Field>
+
+      <Overline>Códigos de cadastro</Overline>
+      <div className="grid-2">
+        <Field label="Código dos alunos"><input className="os-input os-input--code" value={cod.codigo_aluno} onChange={(e) => setCod({ ...cod, codigo_aluno: e.target.value.toUpperCase() })} /></Field>
+        <Field label="Código de professor"><input className="os-input os-input--code" value={cod.codigo_prof} disabled={!admin} onChange={(e) => setCod({ ...cod, codigo_prof: e.target.value.toUpperCase() })} /></Field>
+      </div>
+      <span className="t-sub" style={{ padding: '0 4px' }}>O aluno usa o código dos alunos para criar a conta no app. O código de professor só deve ser passado para professores.</span>
+
+      <button className="os-btn os-btn--primary os-btn--block" onClick={salvar}>Salvar dados</button>
+
+      <Overline>Equipe</Overline>
+      <div className="os-list">
+        {db.profs.map((p) => (
+          <div key={p.id} className="os-listrow">
+            <Avatar s={{ nome: p.nome || 'Professor', belt: p.belt, foto: p.foto }} />
+            <span className="os-listrow__body"><span className="os-listrow__title">{p.nome || 'Sem nome'}</span><span className="os-listrow__meta">Faixa {p.belt.toLowerCase()} · {p.role === 'admin' ? 'administrador' : 'professor'}</span></span>
+            {admin && p.id !== db.session?.sid && <button className="os-btn os-btn--quiet os-btn--sm" onClick={() => { update((d) => { const x = d.profs.find((y) => y.id === p.id)!; x.role = x.role === 'admin' ? 'prof' : 'admin'; }); toast('Permissão atualizada.'); }}>{p.role === 'admin' ? 'Tirar admin' : 'Tornar admin'}</button>}
+          </div>
+        ))}
+      </div>
     </Sub>
   );
 }
@@ -215,7 +252,7 @@ export function GerenciarGrade() {
 export function NovaAula({ id }: { id?: string }) {
   const db = useDB();
   const ex = id ? aulaById(db, id) : undefined;
-  const [f, setF] = useState(() => ex ? { ...ex } : { id: '', nome: '', ini: '19:00', fim: '20:00', dias: [1, 3], publico: 'Adulto', prof: 'Prof. Oseki', vagas: 20, grupo: 'Adulto' as const });
+  const [f, setF] = useState(() => ex ? { ...ex } : { id: '', nome: '', ini: '19:00', fim: '20:00', dias: [1, 3], publico: 'Adulto', prof: meuNome(db), vagas: 20, grupo: 'Adulto' as const });
   const salvar = () => {
     if (!f.nome.trim() || !f.dias.length) { toast('Informe o nome e pelo menos um dia.'); return; }
     update((d) => {
@@ -239,7 +276,7 @@ export function NovaAula({ id }: { id?: string }) {
       <span className="os-field__label">Público</span>
       <div className="scroll-x">{['Kids 4–10', 'Teens 11–15', 'Adulto', 'Todos'].map((p) => <button key={p} className="os-pill" aria-pressed={f.publico === p} onClick={() => setF({ ...f, publico: p })}>{p}</button>)}</div>
       <span className="os-field__label">Professor</span>
-      <div className="scroll-x">{['Prof. Marangoni', 'Prof. Oseki'].map((p) => <button key={p} className="os-pill" aria-pressed={f.prof === p} onClick={() => setF({ ...f, prof: p })}>{p}</button>)}</div>
+      <div className="scroll-x">{db.profs.map((x) => x.nome).filter(Boolean).map((p) => <button key={p} className="os-pill" aria-pressed={f.prof === p} onClick={() => setF({ ...f, prof: p })}>{p}</button>)}</div>
       <div className="os-card os-card--flat row-between" style={{ flexDirection: 'row' }}><span className="t-strong">Vagas</span><Stepper v={f.vagas} set={(v) => setF({ ...f, vagas: v })} min={1} label="vagas" /></div>
       <button className="os-btn os-btn--primary os-btn--block" onClick={salvar}>{ex ? 'Salvar alterações' : 'Criar aula'}</button>
       {ex && <button className="os-btn os-btn--danger" onClick={() => { if (confirm('Excluir esta aula da grade?')) { update((d) => { d.aulas = d.aulas.filter((x) => x.id !== ex.id); }); toast('Aula excluída.'); history.back(); } }}>Excluir aula</button>}

@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { useDB, login, logout, decidir, aprovarTodas, profMarcar, setFaixa, setApto, addNote, graduar, nextStep, update, toast, notify } from '../../data/store';
+import { useDB, sair, meuNome, registrarPagamento, decidir, aprovarTodas, profMarcar, setFaixa, setApto, addNote, graduar, nextStep, update, toast, notify } from '../../data/store';
 import { PLANOS, planoNome } from '../../data/seed';
 import type { BeltName, PlanoId } from '../../data/types';
-import { ADULTO, INFANTIL, addDays, aulaById, aulasDoDia, curta, freq, fromIso, grausTxt, grupoDe, idadeDe, iso, metaDe, presencas, today, WD, MES_LONG, br, primeiro } from '../../data/util';
-import { Avatar, Belt, Chip, Bars, Calendar, Legend, Switch, Stepper, attChip, type DayState } from '../../ui/kit';
-import { Icon, Logo } from '../../ui/Icon';
+import { ADULTO, INFANTIL, addDays, aulaById, aulasDoDia, curta, freq, fromIso, grausTxt, grupoDe, idadeDe, iso, metaDe, presencas, today, WD, MES_LONG, br, primeiro, valorDe, brl, mesAtual } from '../../data/util';
+import { Avatar, Belt, Chip, Bars, Calendar, Legend, Switch, Stepper, attChip, type DayState, Sheet, Field } from '../../ui/kit';
+import { Icon } from '../../ui/Icon';
+import { ProfSub } from '../prof/ProfApp';
+import { EditAluno } from '../prof/Alunos';
 import { go } from '../../ui/router';
 import { rankingDe } from '../shared/Ranking';
 import { rosterDe } from '../prof/Chamada';
@@ -18,43 +20,54 @@ const MENU: [string, string, string][] = [
 
 export default function Desk({ route }: { route: string[] }) {
   const db = useDB();
-  const ok = db.session?.role === 'admin' || db.session?.role === 'prof';
-  if (!ok) return <DeskLogin />;
-  const tela = route[0] && route[0] !== 'login' ? route[0] : 'painel';
+  // Aceita rotas do app do professor ("prof/x/academia") dentro do painel
+  let r = route[0] === 'prof' ? route.slice(1) : route;
+  if (r[0] === 'aluno') r = ['ficha', r[1]];
+  if (r[0] === 'chamada') r = ['presencas'];
+  if (r[0] === 'mais') r = ['painel'];
+  const tela = r[0] && r[0] !== 'login' ? r[0] : 'painel';
   const pend = db.att.filter((x) => x.status === 'pend').length;
+  const unread = db.notifs.filter((n) => n.to === 'prof' && !n.read).length;
+  const eu = db.profs.find((p) => p.id === db.session?.sid);
   const title = tela === 'ficha' ? 'Ficha do aluno' : MENU.find((m) => m[0] === tela)?.[1] ?? 'Painel';
   return (
     <div className="desk os-root">
       <nav className="os-sidenav" aria-label="Menu do painel">
         <div className="nav-hide col" style={{ gap: 2, padding: '0 8px 20px' }}>
           <span style={{ font: 'italic 700 30px/1 var(--font-display)' }}>OSEKI BJJ</span>
-          <span className="os-tatame__sub">Painel admin</span>
+          <span className="os-tatame__sub">Painel da academia</span>
         </div>
         {MENU.map(([id, l]) => (
-          <button key={id} className="os-navitem" aria-current={tela === id || (tela === 'ficha' && id === 'alunos') ? 'page' : undefined} onClick={() => go(`painel/${id}`)}>
+          <button key={id} className="os-navitem" aria-current={tela === id || (tela === 'ficha' && id === 'alunos') ? 'page' : undefined} onClick={() => go(id)}>
             <span>{l}</span>{id === 'aprovacoes' && pend > 0 && <span className="os-count">{pend}</span>}
           </button>
         ))}
+        <button className="os-navitem" aria-current={tela === 'x' && r[1] === 'notif' ? 'page' : undefined} onClick={() => go('x/notif')}><span>Notificações</span>{unread > 0 && <span className="os-count">{unread}</span>}</button>
         <div className="nav-hide" style={{ marginTop: 'auto', paddingTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <span className="os-tatame__sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: '#5CC48A' }} />App sincronizado · agora</span>
-          <div className="row"><div className="os-avatar" style={{ ['--ring' as string]: 'var(--belt-preta)' }}>PM</div><div className="col grow"><span style={{ fontSize: 13, fontWeight: 700 }}>Prof. Marangoni</span><span className="os-tatame__sub">Administrador</span></div>
-            <button className="icon-btn" aria-label="Sair" onClick={() => { logout(); go('painel'); }}><Icon n="logout" size={18} /></button></div>
-          <button className="os-navitem" onClick={() => go('prof/chamada')}><span>Abrir app do professor</span></button>
+          <span className="os-tatame__sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: '#5CC48A' }} />Sincronizado com o app</span>
+          <div className="row">
+            <Avatar s={{ nome: eu?.nome || 'Professor', belt: eu?.belt ?? 'Preta', foto: eu?.foto }} />
+            <button className="col grow" style={{ background: 'none', border: 0, color: 'inherit', textAlign: 'left', cursor: 'pointer', padding: 0 }} onClick={() => go('x/perfil')}><span style={{ fontSize: 13, fontWeight: 700 }}>{meuNome(db) || 'Professor'}</span><span className="os-tatame__sub">{db.session?.role === 'admin' ? 'Administrador' : 'Professor'} · meu perfil</span></button>
+            <button className="icon-btn" aria-label="Sair" onClick={() => sair()}><Icon n="logout" size={18} /></button>
+          </div>
         </div>
       </nav>
       <main className="desk-main">
-        <div className="row-between wrap">
-          <div className="col" style={{ gap: 4 }}>
-            <span className="t-sub">Painel / {title}</span>
-            <h1 className="desk-title" style={{ margin: 0 }}>{title}</h1>
+        {tela !== 'x' && (
+          <div className="row-between wrap">
+            <div className="col" style={{ gap: 4 }}>
+              <span className="t-sub">{db.settings.academia} / {title}</span>
+              <h1 className="desk-title" style={{ margin: 0 }}>{title}</h1>
+            </div>
+            <div className="row"><Chip tone="info">Mesmos dados do app</Chip><span className="t-small muted">{curta(today())} {today().getFullYear()}</span></div>
           </div>
-          <div className="row"><Chip tone="info">Mesmos dados do app</Chip><span className="t-small muted">{curta(today())} {today().getFullYear()}</span></div>
-        </div>
+        )}
+        {tela === 'x' && <div style={{ maxWidth: 560, width: '100%', background: 'var(--tatame)', borderRadius: 24, boxShadow: 'var(--shadow-card)', overflow: 'hidden', alignSelf: 'center', position: 'relative' }}><ProfSub sub={r[1]} id={r[2]} /></div>}
         {tela === 'painel' && <DPainel />}
         {tela === 'presencas' && <DPresencas />}
         {tela === 'aprovacoes' && <DAprov />}
         {tela === 'alunos' && <DAlunos />}
-        {tela === 'ficha' && <DFicha sid={route[1]} />}
+        {tela === 'ficha' && <DFicha sid={r[1]} />}
         {tela === 'graduacao' && <DGrad />}
         {tela === 'grade' && <DGrade />}
         {tela === 'financeiro' && <DFin />}
@@ -65,37 +78,6 @@ export default function Desk({ route }: { route: string[] }) {
         {tela === 'acesso' && <DAcesso />}
         {tela === 'config' && <DConfig />}
       </main>
-    </div>
-  );
-}
-
-function DeskLogin() {
-  const [step, setStep] = useState(0);
-  const [code, setCode] = useState('');
-  return (
-    <div className="desk-login os-root">
-      <div className="os-tatame" style={{ borderRadius: 0 }}>
-        <div className="col" style={{ gap: 18 }}>
-          <div className="login" style={{ padding: 0, flex: 'none' }}><div className="logo"><Logo /></div></div>
-          <span className="t-wordmark" style={{ fontSize: 40 }}>Oseki BJJ</span>
-        </div>
-        <div className="col" style={{ gap: 16 }}>
-          <span style={{ font: '700 72px/0.92 var(--font-display)', textTransform: 'uppercase' }}>Painel da<br />academia</span>
-          <span className="on-night-muted" style={{ fontSize: 16, maxWidth: 440, lineHeight: 1.6 }}>Presenças, faixas, alunos e mensalidades em tela grande. Tudo sincronizado com o app que alunos e professores usam no celular.</span>
-        </div>
-        <span className="os-tatame__sub">Marangoni BJJ / Oseki BJJ</span>
-      </div>
-      <div>
-        <form className="os-card os-card--desk" style={{ width: '100%', maxWidth: 400, gap: 14 }} onSubmit={(e) => { e.preventDefault(); if (step === 0) { setStep(1); toast('Código de verificação na demo: 123456'); } else if (code === '123456') { login('admin'); toast('Bem-vindo ao painel. Oss!'); } else toast('Código inválido. Na demo, use 123456.'); }}>
-          <span className="os-chip os-chip--danger" style={{ alignSelf: 'flex-start' }}><Icon n="lock" size={13} />&nbsp;Acesso restrito a administradores</span>
-          <span className="t-display-sm">Entrar</span>
-          <label className="os-field"><span className="os-field__label">E-mail</span><input className="os-input" type="email" defaultValue="marangoni@demo.oseki" /></label>
-          <label className="os-field"><span className="os-field__label">Senha</span><input className="os-input" type="password" defaultValue="oseki2026" /></label>
-          {step === 1 && <label className="os-field"><span className="os-field__label">Código de verificação (enviado ao celular)</span><input className="os-input os-input--code" inputMode="numeric" autoFocus value={code} onChange={(e) => setCode(e.target.value)} placeholder="000000" /></label>}
-          <button className="os-btn os-btn--primary os-btn--desk os-btn--block" type="submit">{step === 0 ? 'Continuar' : 'Entrar no painel'}</button>
-          <span className="t-sub">Alunos não têm acesso ao painel. Eles usam o app Oseki BJJ no celular. <button type="button" className="link" style={{ fontSize: 12 }} onClick={() => go('login')}>Abrir app</button></span>
-        </form>
-      </div>
     </div>
   );
 }
@@ -119,10 +101,10 @@ function DPainel() {
   return (
     <>
       <div className="kpis">
-        <Kpi l="Alunos ativos" v={db.students.length} sub="+2 este mês" tone="night" />
-        <Kpi l="Presentes hoje" v={new Set(recs.map((x) => x.sid)).size} sub={`${recs.filter((x) => x.via === 'gps').length} por GPS`} onClick={() => go('painel/presencas')} />
+        <Kpi l="Alunos ativos" v={db.students.filter((s) => s.status !== 'inativo').length} sub={`${db.students.filter((s) => s.pay === 'atraso').length} com mensalidade atrasada`} tone="night" />
+        <Kpi l="Presentes hoje" v={new Set(recs.map((x) => x.sid)).size} sub={`${recs.filter((x) => x.via === 'gps').length} por GPS`} onClick={() => go('presencas')} />
         <Kpi l="Frequência média" v={`${media}%`} sub="últimos 30 dias" />
-        <Kpi l="Aprovações pendentes" v={pend} sub="Revisar agora" tone={pend ? 'warning' : undefined} onClick={() => go('painel/aprovacoes')} />
+        <Kpi l="Aprovações pendentes" v={pend} sub="Revisar agora" tone={pend ? 'warning' : undefined} onClick={() => go('aprovacoes')} />
       </div>
       <div className="desk-grid">
         <div className="os-card os-card--desk"><div className="row-between"><span className="t-title">Presenças por dia</span><span className="t-sub">semana atual</span></div><Bars data={semana} hl={today().getDay()} /></div>
@@ -133,10 +115,10 @@ function DPainel() {
         </div>
         <div className="os-card os-card--desk">
           <span className="t-title">Precisam de atenção</span>
-          {atencao.map(({ s, dias, f }) => <div key={s.id} className="row"><Avatar s={s} /><div className="grow col"><span className="t-strong" style={{ fontSize: 14 }}>{s.nome}</span><span className="t-sub">{dias >= 7 ? `${dias} dias sem treinar` : `frequência caiu para ${f}%`}{s.pay === 'atraso' ? ' · mensalidade em atraso' : ''}</span></div><button className="os-btn os-btn--quiet os-btn--sm" onClick={() => go(`painel/ficha/${s.id}`)}>Ficha</button></div>)}
+          {atencao.map(({ s, dias, f }) => <div key={s.id} className="row"><Avatar s={s} /><div className="grow col"><span className="t-strong" style={{ fontSize: 14 }}>{s.nome}</span><span className="t-sub">{dias >= 7 ? `${dias} dias sem treinar` : `frequência caiu para ${f}%`}{s.pay === 'atraso' ? ' · mensalidade em atraso' : ''}</span></div><button className="os-btn os-btn--quiet os-btn--sm" onClick={() => go(`ficha/${s.id}`)}>Ficha</button></div>)}
         </div>
         <div className="os-card os-card--desk">
-          <div className="row-between"><span className="t-title">Prontos para graduar</span><button className="link" onClick={() => go('painel/graduacao')}>Ver graduação</button></div>
+          <div className="row-between"><span className="t-title">Prontos para graduar</span><button className="link" onClick={() => go('graduacao')}>Ver graduação</button></div>
           {prontos.map((s) => <div key={s.id} className="row"><Avatar s={s} size={34} /><span className="grow t-small t-strong">{s.nome}</span><span className="t-sub num">{s.aulas}/{metaDe(db, s)} aulas</span></div>)}
           {prontos.length === 0 && <span className="t-small muted">Ninguém ainda.</span>}
         </div>
@@ -157,12 +139,12 @@ function DPresencas() {
     <>
       <div className="row wrap"><input type="date" className="os-input" value={dia} max={iso(today())} onChange={(e) => { setDia(e.target.value); setSel(null); }} />
         {aulas.map((a) => <button key={a.id} className="os-pill" aria-pressed={a.id === aula?.id} onClick={() => setSel(a.id)}>{a.ini} · {a.nome} · {new Set(recs.filter((x) => x.classId === a.id && x.status === 'ok').map((x) => x.sid)).size}</button>)}
-        {aula && <button className="os-btn os-btn--secondary os-btn--desk" onClick={() => go(`prof/x/qr/${aula.id}`)}><Icon n="qr" size={18} />Exibir QR da aula</button>}</div>
+        {aula && <button className="os-btn os-btn--secondary os-btn--desk" onClick={() => go(`x/qr/${aula.id}`)}><Icon n="qr" size={18} />Exibir QR da aula</button>}</div>
       {!aula ? <div className="empty"><span className="t-small muted">Sem aulas neste dia.</span></div> : (
         <div className="table-wrap"><table className="table">
           <thead><tr><th>Aluno</th><th>Faixa</th><th>Status</th><th>Origem</th><th>Horário</th><th>Ação</th></tr></thead>
           <tbody>{roster.map((s) => { const r = recs.find((x) => x.sid === s.id && x.classId === aula.id) ?? null; const c = attChip(r); return (
-            <tr key={s.id}><td><div className="row"><Avatar s={s} size={34} /><button className="link" style={{ color: 'var(--ink)' }} onClick={() => go(`painel/ficha/${s.id}`)}>{s.nome}</button></div></td>
+            <tr key={s.id}><td><div className="row"><Avatar s={s} size={34} /><button className="link" style={{ color: 'var(--ink)' }} onClick={() => go(`ficha/${s.id}`)}>{s.nome}</button></div></td>
               <td><div style={{ width: 60 }}><Belt belt={s.belt} graus={s.graus} size="sm" /></div></td>
               <td><Chip tone={r ? c.tone : 'neutral'}>{r ? c.t : 'Ausente'}</Chip></td>
               <td className="t-small muted">{r ? { gps: 'GPS', qr: 'QR Code', app: 'App', prof: 'Professor' }[r.via] : '—'}</td><td className="num">{r?.at ?? '—'}</td>
@@ -195,18 +177,18 @@ function DAlunos() {
   const db = useDB();
   const [q, setQ] = useState('');
   const [g, setG] = useState('Todos');
-  const lista = db.students.filter((s) => s.nome.toLowerCase().includes(q.toLowerCase()) && (g === 'Todos' || grupoDe(s) === g));
+  const lista = db.students.filter((s) => s.nome.toLowerCase().includes(q.toLowerCase()) && (g === 'Inativos' ? s.status === 'inativo' : s.status !== 'inativo' && (g === 'Todos' || grupoDe(s) === g))).sort((a, b) => a.nome.localeCompare(b.nome));
   return (
     <>
       <div className="row wrap"><input className="os-input" style={{ minWidth: 260, background: 'var(--surface)' }} placeholder="Buscar aluno" value={q} onChange={(e) => setQ(e.target.value)} />
-        {['Todos', 'Kids', 'Teens', 'Adulto'].map((x) => <button key={x} className="os-pill" aria-pressed={g === x} onClick={() => setG(x)}>{x}</button>)}
-        <span className="grow" /><button className="os-btn os-btn--primary os-btn--desk" onClick={() => go('prof/x/convidar')}><Icon n="plus" size={18} />Convidar aluno</button></div>
+        {['Todos', 'Kids', 'Teens', 'Adulto', 'Inativos'].map((x) => <button key={x} className="os-pill" aria-pressed={g === x} onClick={() => setG(x)}>{x}</button>)}
+        <span className="grow" /><button className="os-btn os-btn--primary os-btn--desk" onClick={() => go('x/convidar')}><Icon n="plus" size={18} />Convidar aluno</button></div>
       <div className="table-wrap"><table className="table"><thead><tr><th>Aluno</th><th>Faixa</th><th>Turma</th><th>Frequência</th><th>Aulas na faixa</th><th>Mensalidade</th><th></th></tr></thead>
         <tbody>{lista.map((s) => (
           <tr key={s.id}><td><div className="row"><Avatar s={s} size={34} /><div className="col"><span className="t-strong">{s.nome}</span><span className="t-sub">{s.nasc ? `${idadeDe(s.nasc)} anos` : 'convidado'}</span></div></div></td>
             <td><div className="col" style={{ gap: 4 }}><div style={{ width: 64 }}><Belt belt={s.belt} graus={s.graus} size="sm" /></div><span className="t-sub">{s.belt} · {grausTxt(s.graus)}</span></div></td>
-            <td className="t-small">{aulaById(db, s.turma)?.nome}</td><td className="num t-strong">{freq(db, s)}%</td><td className="num">{s.aulas}/{metaDe(db, s)}</td><td>{payChip(s.pay, s.payDias)}</td>
-            <td><button className="os-btn os-btn--quiet os-btn--sm" onClick={() => go(`painel/ficha/${s.id}`)}>Abrir ficha</button></td></tr>))}</tbody></table></div>
+            <td className="t-small">{aulaById(db, s.turma)?.nome}</td><td className="num t-strong">{freq(db, s)}%</td><td className="num">{s.aulas}/{metaDe(db, s)}</td><td><div className="col" style={{ gap: 2 }}>{payChip(s.pay, s.payDias)}<span className="t-sub">{brl(valorDe(db, s))}</span></div></td>
+            <td><button className="os-btn os-btn--quiet os-btn--sm" onClick={() => go(`ficha/${s.id}`)}>Abrir ficha</button></td></tr>))}</tbody></table></div>
     </>
   );
 }
@@ -215,6 +197,8 @@ function DFicha({ sid }: { sid?: string }) {
   const db = useDB();
   const s = db.students.find((x) => x.id === sid);
   const [note, setNote] = useState('');
+  const [edit, setEdit] = useState(false);
+  const [pg, setPg] = useState<null | { valor: string; via: string }>(null);
   const [month] = useState(new Date(today().getFullYear(), today().getMonth(), 1));
   if (!s) return <span>Aluno não encontrado.</span>;
   const a = aulaById(db, s.turma);
@@ -225,7 +209,7 @@ function DFicha({ sid }: { sid?: string }) {
   const opts: BeltName[] = grupoDe(s) === 'Adulto' ? ADULTO : Array.from(new Set([...INFANTIL, ...ADULTO]));
   return (
     <>
-      <div className="row"><Avatar s={s} size={72} /><div className="col"><span className="t-display-md">{s.nome}</span><span className="t-small muted">{a?.nome} · {idadeDe(s.nasc)} anos {s.fundador ? `· fundador #${s.fundador}` : ''}</span></div></div>
+      <div className="row"><Avatar s={s} size={72} /><div className="col grow"><span className="t-display-md">{s.nome}</span><span className="t-small muted">{a?.nome} · {idadeDe(s.nasc)} anos {s.fundador ? `· fundador #${s.fundador}` : ''}</span></div><button className="os-btn os-btn--secondary os-btn--desk" onClick={() => setEdit(true)}>Editar dados</button></div>
       <div className="desk-grid">
         <div className="os-card os-card--desk">
           <span className="t-title">Graduação</span>
@@ -237,7 +221,11 @@ function DFicha({ sid }: { sid?: string }) {
           <div className="setting"><div className="col"><span className="t-strong" style={{ fontSize: 14 }}>Apto para exame</span><span className="t-sub">Aparece no app do aluno</span></div><Switch on={s.apto} onChange={(v) => setApto(s.id, v)} label="Apto para exame" /></div>
           <div className="kv"><span>Telefone</span><span>{s.tel || '—'}</span></div>
           <div className="kv"><span>Responsável</span><span>{s.resp || '—'}</span></div>
+          <div className="kv"><span>E-mail</span><span>{s.email || '—'}</span></div>
+          <div className="kv"><span>Plano</span><span>{planoNome(s.plano)} · {brl(valorDe(db, s))}</span></div>
           <div className="kv"><span>Mensalidade</span><span>{payChip(s.pay, s.payDias)}</span></div>
+          {s.pay !== 'pago' && <button className="os-btn os-btn--primary os-btn--desk" onClick={() => setPg({ valor: String(valorDe(db, s) || ''), via: 'Pix' })}>Registrar pagamento do mês</button>}
+          {(s.pagamentos ?? []).slice(0, 6).map((p) => <div key={p.mes} className="kv" style={{ fontSize: 13, padding: '8px 0' }}><span>{p.mes.split('-').reverse().join('/')} · {p.via}</span><span>{brl(p.valor)}</span></div>)}
         </div>
         <div className="os-card os-card--desk">
           <div className="row-between"><span className="t-title">Presença · {MES_LONG[month.getMonth()].toLowerCase()}</span><span className="t-sub num">{s.aulas}/{meta} aulas na faixa</span></div>
@@ -257,6 +245,14 @@ function DFicha({ sid }: { sid?: string }) {
           {s.notes.map((n, i) => <div key={i} className="divider col" style={{ paddingTop: 10 }}><span className="t-sub">{n.d}</span><span className="t-body">{n.t}</span></div>)}
         </div>
       </div>
+      {edit && <EditAluno sid={s.id} onClose={() => setEdit(false)} />}
+      {pg && (
+        <Sheet title="Registrar pagamento" onClose={() => setPg(null)}>
+          <Field label="Valor (R$)"><input className="os-input" inputMode="decimal" value={pg.valor} onChange={(e) => setPg({ ...pg, valor: e.target.value })} /></Field>
+          <div className="row wrap">{['Pix', 'Dinheiro', 'Cartão', 'Transferência'].map((v) => <button key={v} className="os-pill" aria-pressed={pg.via === v} onClick={() => setPg({ ...pg, via: v })}>{v}</button>)}</div>
+          <button className="os-btn os-btn--primary os-btn--block" onClick={() => { registrarPagamento(s.id, Number(pg.valor.replace(',', '.')) || 0, pg.via); setPg(null); toast('Pagamento registrado.'); }}>Confirmar pagamento</button>
+        </Sheet>
+      )}
     </>
   );
 }
@@ -286,12 +282,12 @@ function DGrade() {
   const ini = addDays(today(), -today().getDay());
   return (
     <>
-      <div className="row-between"><span className="t-small muted">Toque numa aula para editar.</span><button className="os-btn os-btn--primary os-btn--desk" onClick={() => go('prof/x/novaaula')}><Icon n="plus" size={18} />Nova aula</button></div>
+      <div className="row-between"><span className="t-small muted">Toque numa aula para editar.</span><button className="os-btn os-btn--primary os-btn--desk" onClick={() => go('x/novaaula')}><Icon n="plus" size={18} />Nova aula</button></div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(130px, 1fr))', gap: 10, overflowX: 'auto' }}>
         {WD.map((w, i) => { const d = addDays(ini, i); return (
           <div key={w} className="col-2">
             <span className="os-overline" style={{ color: iso(d) === iso(today()) ? 'var(--ponteira)' : undefined }}>{w} · {d.getDate()}</span>
-            {aulasDoDia(db, d).map((a) => <button key={a.id} className="os-card os-card--flat" style={{ padding: 12, borderRadius: 12, textAlign: 'left', cursor: 'pointer', color: 'var(--ink)', gap: 2, border: 0 }} onClick={() => go(`prof/x/novaaula/${a.id}`)}><span className="t-strong" style={{ fontSize: 13 }}>{a.ini}</span><span style={{ fontSize: 13, fontWeight: 600 }}>{a.nome}</span><span className="t-sub" style={{ fontSize: 11 }}>{a.prof}</span></button>)}
+            {aulasDoDia(db, d).map((a) => <button key={a.id} className="os-card os-card--flat" style={{ padding: 12, borderRadius: 12, textAlign: 'left', cursor: 'pointer', color: 'var(--ink)', gap: 2, border: 0 }} onClick={() => go(`x/novaaula/${a.id}`)}><span className="t-strong" style={{ fontSize: 13 }}>{a.ini}</span><span style={{ fontSize: 13, fontWeight: 600 }}>{a.nome}</span><span className="t-sub" style={{ fontSize: 11 }}>{a.prof}</span></button>)}
           </div>); })}
       </div>
     </>
@@ -300,16 +296,29 @@ function DGrade() {
 
 function DFin() {
   const db = useDB();
-  const pagas = db.students.filter((s) => s.pay === 'pago').length;
-  const atraso = db.students.filter((s) => s.pay === 'atraso').length;
-  const confirmar = (sid: string) => update((d) => { const s = d.students.find((x) => x.id === sid)!; s.pay = 'pago'; s.payDias = undefined; s.mesesEmDia += 1; notify(d, sid, 'Mensalidade paga', 'Pagamento confirmado. Oss!', 'pay'); });
+  const [pg, setPg] = useState<null | { sid: string; valor: string; via: string }>(null);
+  const ativos = db.students.filter((s) => s.status !== 'inativo');
+  const m = mesAtual();
+  const pagas = ativos.filter((s) => s.pay === 'pago').length;
+  const atraso = ativos.filter((s) => s.pay === 'atraso').length;
+  const recebido = ativos.reduce((t, s) => t + (s.pagamentos ?? []).filter((p) => p.mes === m).reduce((a, p) => a + p.valor, 0), 0);
+  const previsto = ativos.reduce((t, s) => t + valorDe(db, s), 0);
+  const real = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   return (
     <>
-      <div className="kpis"><Kpi l={`Recebido em ${MES_LONG[today().getMonth()].toLowerCase()}`} v="R$ [VALOR]" tone="night" /><Kpi l="Pagas" v={pagas} /><Kpi l="Em aberto" v={db.students.length - pagas - atraso} /><Kpi l="Em atraso" v={atraso} tone={atraso ? 'warning' : undefined} /></div>
-      <div className="table-wrap"><table className="table"><thead><tr><th>Aluno</th><th>Plano</th><th>Vencimento</th><th>Status</th><th>Ação</th></tr></thead>
-        <tbody>{db.students.map((s) => (
-          <tr key={s.id}><td><div className="row"><Avatar s={s} size={34} />{s.nome}{s.fundador && <span className="os-seal os-seal--fundador">Fundador</span>}</div></td><td>{planoNome(s.plano)}</td><td>15/{String(today().getMonth() + 1).padStart(2, '0')}</td><td>{payChip(s.pay, s.payDias)}</td>
-            <td>{s.pay === 'pago' ? <span className="t-sub">—</span> : s.pay === 'analise' ? <button className="os-btn os-btn--primary os-btn--sm" onClick={() => confirmar(s.id)}>Confirmar Pix</button> : <div className="row" style={{ gap: 6 }}><button className="os-btn os-btn--secondary os-btn--sm" onClick={() => { update((d) => notify(d, s.id, 'Lembrete de mensalidade', 'Pague pelo app com Pix.', 'pay')); toast('Lembrete enviado.'); }}>Cobrar</button><button className="os-btn os-btn--quiet os-btn--sm" onClick={() => confirmar(s.id)}>Marcar pago</button></div>}</td></tr>))}</tbody></table></div>
+      <div className="kpis"><Kpi l={`Recebido em ${MES_LONG[today().getMonth()].toLowerCase()}`} v={real(recebido)} sub={`previsto ${real(previsto)}`} tone="night" /><Kpi l="Pagas" v={pagas} /><Kpi l="Em aberto" v={ativos.length - pagas - atraso} /><Kpi l="Em atraso" v={atraso} tone={atraso ? 'warning' : undefined} /></div>
+      {PLANOS.some((p) => !db.settings.precos?.[p.id]) && <button className="os-btn os-btn--secondary os-btn--desk" style={{ alignSelf: 'flex-start' }} onClick={() => go('x/academia')}>Definir valores dos planos</button>}
+      <div className="table-wrap"><table className="table"><thead><tr><th>Aluno</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Ação</th></tr></thead>
+        <tbody>{ativos.map((s) => (
+          <tr key={s.id}><td><div className="row"><Avatar s={s} size={34} />{s.nome}{s.fundador && <span className="os-seal os-seal--fundador">Fundador</span>}</div></td><td>{planoNome(s.plano)}</td><td className="num t-strong">{brl(valorDe(db, s))}</td><td>dia {db.settings.vencimento || 15}</td><td>{payChip(s.pay, s.payDias)}</td>
+            <td>{s.pay === 'pago' ? <span className="t-sub">{(s.pagamentos ?? []).find((p) => p.mes === m)?.via}</span> : <div className="row" style={{ gap: 6 }}>{s.pay !== 'analise' && <button className="os-btn os-btn--secondary os-btn--sm" onClick={() => { update((d) => notify(d, s.id, 'Lembrete de mensalidade', 'Sua mensalidade está em aberto. Pague pelo app com Pix.', 'pay')); toast('Lembrete enviado.'); }}>Cobrar</button>}<button className="os-btn os-btn--primary os-btn--sm" onClick={() => setPg({ sid: s.id, valor: String(valorDe(db, s) || ''), via: s.pay === 'analise' ? 'Pix' : 'Dinheiro' })}>{s.pay === 'analise' ? 'Confirmar Pix' : 'Registrar pagamento'}</button></div>}</td></tr>))}</tbody></table></div>
+      {pg && (
+        <Sheet title="Registrar pagamento" onClose={() => setPg(null)}>
+          <Field label="Valor (R$)"><input className="os-input" inputMode="decimal" value={pg.valor} onChange={(e) => setPg({ ...pg, valor: e.target.value })} /></Field>
+          <div className="row wrap">{['Pix', 'Dinheiro', 'Cartão', 'Transferência'].map((v) => <button key={v} className="os-pill" aria-pressed={pg.via === v} onClick={() => setPg({ ...pg, via: v })}>{v}</button>)}</div>
+          <button className="os-btn os-btn--primary os-btn--block" onClick={() => { registrarPagamento(pg.sid, Number(pg.valor.replace(',', '.')) || 0, pg.via); setPg(null); toast('Pagamento registrado.'); }}>Confirmar pagamento</button>
+        </Sheet>
+      )}
     </>
   );
 }
@@ -338,7 +347,8 @@ function DPlanos() {
   const setS = (k: 'fundadorVagas' | 'fundadorDesconto' | 'fundadorTolerancia', v: number) => update((d) => { d.settings[k] = v; });
   return (
     <>
-      <div className="kpis">{PLANOS.map((p) => <div key={p.id} className="os-card os-card--desk" style={{ gap: 6 }}><div className="row-between"><span className="t-display-sm" style={{ fontSize: 22 }}>{p.nome}</span>{p.id !== 'avulso' && <span className="os-seal os-seal--fundador">Fundador</span>}</div><span className="t-stat" style={{ fontSize: 26 }}>R$ [VALOR]</span><span className="t-sub">{p.per} · {p.desc}</span><span className="t-small">Alunos ativos: <b>{db.students.filter((x) => x.plano === p.id).length}</b></span></div>)}</div>
+      <button className="os-btn os-btn--secondary os-btn--desk" style={{ alignSelf: 'flex-start' }} onClick={() => go('x/academia')}>Editar valores, vencimento e Pix</button>
+      <div className="kpis">{PLANOS.map((p) => <div key={p.id} className="os-card os-card--desk" style={{ gap: 6 }}><div className="row-between"><span className="t-display-sm" style={{ fontSize: 22 }}>{p.nome}</span>{p.id !== 'avulso' && <span className="os-seal os-seal--fundador">Fundador</span>}</div><span className="t-stat" style={{ fontSize: 26 }}>{brl(s.precos?.[p.id] ?? 0)}</span><span className="t-sub">{p.per} · {p.desc}</span><span className="t-small">Alunos ativos: <b>{db.students.filter((x) => x.plano === p.id).length}</b></span></div>)}</div>
       <div className="desk-grid">
         <div className="os-card os-card--desk os-card--night">
           <span className="os-overline" style={{ color: 'var(--fundador)' }}>Programa aluno fundador</span>
@@ -417,13 +427,13 @@ function DConfig() {
         <div className="seg">{[50, 100, 200, 300].map((r) => <button key={r} aria-pressed={s.raio === r} onClick={() => update((d) => { d.settings.raio = r; })}>{r} m</button>)}</div>
         <span className="t-sub">Janela: 30 min antes até 15 min após o início da aula.</span>
         <span className="t-mono" style={{ fontSize: 12 }}>{s.lat != null ? `${s.lat.toFixed(5)}, ${s.lng!.toFixed(5)}` : 'Local ainda não definido'}</span>
-        <button className="os-btn os-btn--secondary os-btn--desk" onClick={() => go('prof/x/geo')}>Definir local pelo celular</button>
+        <button className="os-btn os-btn--secondary os-btn--desk" onClick={() => go('x/geo')}>Definir local pelo celular</button>
       </div>
       <div className="os-card os-card--desk">
         <span className="t-title">Quem acessa o painel desktop</span>
-        {[['PM', 'Prof. Marangoni', 'Admin'], ['DO', 'Prof. Oseki', 'Admin']].map(([i, n, r]) => <div key={n} className="row"><div className="os-avatar" style={{ ['--ring' as string]: 'var(--belt-preta)' }}>{i}</div><span className="grow t-strong">{n}</span><Chip tone="info">{r}</Chip></div>)}
-        <div className="row"><div className="os-avatar" style={{ background: 'var(--surface-sunken)', color: 'var(--ink)' }}>{db.students.length}</div><span className="grow t-strong">Alunos</span><Chip tone="neutral">Só o app</Chip></div>
-        <div className="setting"><div className="col"><span className="t-strong" style={{ fontSize: 14 }}>Verificação em duas etapas</span><span className="t-sub">Código no celular a cada login</span></div><Switch on label="Verificação em duas etapas" onChange={() => toast('Obrigatória para administradores.')} /></div>
+        {db.profs.map((p) => <div key={p.id} className="row"><Avatar s={{ nome: p.nome || 'Professor', belt: p.belt, foto: p.foto }} /><span className="grow t-strong">{p.nome || 'Sem nome'}</span><Chip tone="info">{p.role === 'admin' ? 'Admin' : 'Professor'}</Chip></div>)}
+        <div className="row"><div className="os-avatar" style={{ background: 'var(--surface-sunken)', color: 'var(--ink)' }}>{db.students.filter((s) => s.status !== 'inativo').length}</div><span className="grow t-strong">Alunos</span><Chip tone="neutral">Só o app</Chip></div>
+        <button className="os-btn os-btn--secondary os-btn--desk" onClick={() => go('x/academia')}>Dados da academia, valores, Pix e códigos</button>
       </div>
       <div className="os-card os-card--desk">
         <span className="t-title">Formas de check-in no app</span>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import jsQR from 'jsqr';
-import { update, marcarPresenca, toast } from '../../data/store';
-import { addDays, aulasDoAluno, curta, freq, fromIso, iso, MES, presencas, semanasSeguidas, today, WD, br, grupoDe, metaDe, grausTxt, proximaFaixa, aulaById } from '../../data/util';
+import { update, marcarPresenca, toast, notify } from '../../data/store';
+import { addDays, aulasDoAluno, curta, freq, fromIso, iso, MES, presencas, semanasSeguidas, today, WD, br, grupoDe, metaDe, grausTxt, proximaFaixa, aulaById, valorDe, brl, mesAtual } from '../../data/util';
 import { Sub, Chip, Bars, Overline, Belt } from '../../ui/kit';
 import { Icon, Logo } from '../../ui/Icon';
 import { go } from '../../ui/router';
@@ -120,12 +120,6 @@ export function QRCheckin() {
     marcarPresenca(me.id, classId, hoje, 'qr');
     setDone(classId);
   }
-  const simular = () => {
-    const a = aulasDoAluno(db, me).find((x) => x.dias.includes(today().getDay()));
-    if (!a) { toast('Hoje não tem aula da sua turma.'); return; }
-    confirmar(a.id);
-  };
-
   if (done) {
     const a = aulaById(db, done);
     const rec = db.att.find((x) => x.sid === me.id && x.date === hoje && x.classId === done);
@@ -144,12 +138,11 @@ export function QRCheckin() {
     <Sub title="Check-in" sub="QR Code do tatame" fallback="aluno/inicio">
       <div className="scanner">
         <video ref={video} playsInline muted />
-        {cam !== 'on' && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: 24, textAlign: 'center', fontSize: 14 }}>{cam === 'erro' ? 'Câmera indisponível. Use "Simular leitura" ou permita a câmera.' : 'Abrindo a câmera…'}</div>}
+        {cam !== 'on' && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: 24, textAlign: 'center', fontSize: 14 }}>{cam === 'erro' ? 'Câmera indisponível. Permita o uso da câmera nas configurações do aparelho ou marque a presença manualmente.' : 'Abrindo a câmera…'}</div>}
         <div className="frame" />
       </div>
       <span className="t-title center" style={{ textAlign: 'center' }}>Aponte para o QR Code do tatame</span>
       <span className="t-small muted" style={{ textAlign: 'center' }}>O professor exibe o código no início da aula. Ideal para quem está sem GPS.</span>
-      <button className="os-btn os-btn--dashed" onClick={simular}>Simular leitura</button>
     </Sub>
   );
 }
@@ -209,10 +202,10 @@ export function Tecnicas() {
       {semana && (
         <div className="os-card os-card--night" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ height: 150, background: 'linear-gradient(135deg, #1E3248, #121A24)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {semana.video ? <video src={semana.video} controls style={{ width: '100%', height: '100%' }} /> : <span style={{ width: 56, height: 56, borderRadius: 28, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon n="play" /></span>}
+            {semana.video ? <a href={semana.video} target="_blank" rel="noreferrer" aria-label="Assistir vídeo" style={{ width: 56, height: 56, borderRadius: 28, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}><Icon n="play" /></a> : <span style={{ width: 56, height: 56, borderRadius: 28, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon n="play" /></span>}
           </div>
           <div className="col-2" style={{ padding: '14px 18px 18px' }}>
-            <span className="os-overline" style={{ color: 'var(--on-night-muted)' }}>Posição da semana · {semana.dur}</span>
+            <span className="os-overline" style={{ color: 'var(--on-night-muted)' }}>Posição da semana{semana.dur ? ` · ${semana.dur}` : ''}</span>
             <span className="t-display-sm">{semana.titulo}</span>
             <span className="t-small os-muted">{semana.desc}</span>
           </div>
@@ -228,10 +221,10 @@ export function Tecnicas() {
             <div key={t.id}>
               <button className="os-listrow" style={{ width: '100%', background: 'none', border: 0, borderBottom: '1px solid var(--line)', textAlign: 'left', cursor: 'pointer', opacity: bloq ? 0.55 : 1 }} onClick={() => bloq ? toast(`Liberada a partir da faixa ${t.faixaMin.toLowerCase()}.`) : setAberta(aberta === t.id ? null : t.id)}>
                 <span className="ic-box" style={{ width: 40, height: 40 }}><Icon n={bloq ? 'lock' : 'play'} size={18} /></span>
-                <span className="os-listrow__body"><span className="os-listrow__title">{t.titulo}</span><span className="os-listrow__meta">{t.cat} · faixa {t.faixaMin.toLowerCase()} · {t.dur}</span></span>
+                <span className="os-listrow__body"><span className="os-listrow__title">{t.titulo}</span><span className="os-listrow__meta">{t.cat} · faixa {t.faixaMin.toLowerCase()}{t.dur ? ` · ${t.dur}` : ''}</span></span>
                 {nv === 2 ? <Chip tone="success">Aprovada</Chip> : nv === 1 ? <Chip tone="warning">Em treino</Chip> : null}
               </button>
-              {aberta === t.id && <div className="t-small muted" style={{ padding: '10px 0 14px' }}>{t.desc}{t.video && <video src={t.video} controls style={{ width: '100%', marginTop: 8, borderRadius: 12 }} />}</div>}
+              {aberta === t.id && <div className="t-small muted" style={{ padding: '10px 0 14px' }}>{t.desc}{t.video && <a className="os-btn os-btn--secondary os-btn--sm" style={{ marginTop: 8 }} href={t.video} target="_blank" rel="noreferrer"><Icon n="play" size={16} />Assistir vídeo</a>}</div>}
             </div>
           );
         })}
@@ -245,7 +238,7 @@ export function Exame() {
   const { db, me } = useMe();
   const meta = metaDe(db, me);
   const nf = me.graus < 4 ? `${me.graus + 1}º grau` : `Faixa ${(proximaFaixa(me) ?? me.belt).toLowerCase()}`;
-  const ex = fromIso(db.settings.proximoExame);
+  const ex = db.settings.proximoExame ? fromIso(db.settings.proximoExame) : null;
   const reqs = [
     { t: `${meta} aulas na faixa`, d: `${Math.min(me.aulas, meta)} de ${meta}`, ok: me.aulas >= meta },
     { t: 'Frequência acima de 70%', d: `${freq(db, me)}% nos últimos 30 dias`, ok: freq(db, me) >= 70 },
@@ -256,7 +249,7 @@ export function Exame() {
       <div className="os-card os-card--night" style={{ padding: 18 }}>
         <Belt belt={me.belt} graus={me.graus} />
         <div className="row-between"><div className="col"><span className="os-muted t-small">Próximo passo</span><span style={{ fontWeight: 700, fontSize: 17 }}>{nf}</span></div>
-          <div className="col" style={{ alignItems: 'flex-end' }}><span className="os-muted t-small">Próximo exame</span><span style={{ fontWeight: 700 }}>{curta(ex)} · 10:00</span></div></div>
+          <div className="col" style={{ alignItems: 'flex-end' }}><span className="os-muted t-small">Próximo exame</span><span style={{ fontWeight: 700 }}>{ex ? curta(ex) : 'A definir'}</span></div></div>
         {me.apto && <span className="os-chip os-chip--success" style={{ alignSelf: 'flex-start' }}>Você está apto. Oss!</span>}
       </div>
       <Overline>Requisitos</Overline>
@@ -314,29 +307,37 @@ export function Mensalidade() {
   const { db, me } = useMe();
   const [copiado, setCopiado] = useState(false);
   const mes = today();
+  const valor = valorDe(db, me);
+  const pix = db.settings.chavePix;
+  const venc = db.settings.vencimento || 15;
   const status = me.pay === 'pago' ? { tone: 'success' as const, t: 'Pago' } : me.pay === 'analise' ? { tone: 'info' as const, t: 'Em análise' } : me.pay === 'atraso' ? { tone: 'danger' as const, t: `Em atraso · ${me.payDias ?? 0} dias` } : { tone: 'warning' as const, t: 'Em aberto' };
-  const copiar = async () => { try { await navigator.clipboard.writeText('[CÓDIGO PIX GERADO PELA ACADEMIA]'); } catch { /* sem permissão */ } setCopiado(true); toast('Código Pix copiado.'); };
-  const paguei = () => { update((d) => { const s = d.students.find((x) => x.id === me.id)!; s.pay = 'analise'; d.notifs.unshift({ id: Math.random().toString(36).slice(2), to: 'prof', t: `${s.nome} informou pagamento`, d: 'Confira o Pix e confirme no Financeiro.', at: new Date().toISOString(), kind: 'pay', read: false }); }); toast('Pagamento informado. A academia vai confirmar.'); };
-  const hist = [1, 2, 3].map((k) => { const d = new Date(mes.getFullYear(), mes.getMonth() - k, 10 + k); return { m: d.toLocaleDateString('pt-BR', { month: 'long' }), d: `pago em ${br(d).slice(0, 5)} · ${k === 3 ? 'cartão' : 'Pix'}` }; });
+  const copiar = async () => { try { await navigator.clipboard.writeText(pix); setCopiado(true); toast('Chave Pix copiada.'); } catch { toast('Copie a chave manualmente.'); } };
+  const paguei = () => { update((d) => { const s = d.students.find((x) => x.id === me.id)!; s.payInformado = mesAtual(); notify(d, 'prof', `${s.nome} informou pagamento`, `${brl(valor)} · confira o Pix e confirme no Financeiro.`, 'pay'); }); toast('Pagamento informado. A academia vai confirmar.'); };
   return (
     <Sub title="Mensalidade" sub={planoNome(me.plano)} fallback="aluno/perfil">
       <div className="os-card" style={{ padding: 18 }}>
-        <div className="kv" style={{ padding: '0 0 12px' }}><span>Plano</span><span>{planoNome(me.plano)} · {aulaById(db, me.turma)?.nome}</span></div>
-        <div className="row-between"><div className="col"><span className="t-small muted" style={{ textTransform: 'capitalize' }}>{mes.toLocaleDateString('pt-BR', { month: 'long' })} · vence 15/{String(mes.getMonth() + 1).padStart(2, '0')}</span><span className="t-stat">R$ [VALOR]</span></div><Chip tone={status.tone}>{status.t}</Chip></div>
-        {me.fundador && <span className="os-seal os-seal--fundador" style={{ alignSelf: 'flex-start' }}>Fundador · {db.settings.fundadorDesconto}% off</span>}
+        <div className="kv" style={{ padding: '0 0 12px' }}><span>Plano</span><span>{planoNome(me.plano)}{aulaById(db, me.turma) ? ` · ${aulaById(db, me.turma)?.nome}` : ''}</span></div>
+        <div className="row-between"><div className="col"><span className="t-small muted" style={{ textTransform: 'capitalize' }}>{mes.toLocaleDateString('pt-BR', { month: 'long' })} · vence dia {venc}</span><span className="t-stat">{brl(valor)}</span></div><Chip tone={status.tone}>{status.t}</Chip></div>
+        {me.fundador && me.plano !== 'avulso' && <span className="os-seal os-seal--fundador" style={{ alignSelf: 'flex-start' }}>Fundador · {db.settings.fundadorDesconto}% off</span>}
       </div>
       {me.pay !== 'pago' && (
         <div className="os-card" style={{ padding: 18 }}>
           <span className="t-title">Pagar com Pix</span>
-          <span className="os-field__label">Código Pix copia e cola</span>
-          <div className="t-mono" style={{ background: 'var(--surface-sunken)', border: '1px solid var(--line-strong)', borderRadius: 12, padding: 12, fontSize: 12, wordBreak: 'break-all' }}>[CÓDIGO PIX GERADO PELA ACADEMIA]</div>
-          <button className="os-btn os-btn--primary" onClick={copiar}><Icon n="copy" size={18} />{copiado ? 'Copiado' : 'Copiar código'}</button>
+          {pix ? (
+            <>
+              <span className="os-field__label">Chave Pix da academia</span>
+              <div className="t-mono" style={{ background: 'var(--surface-sunken)', border: '1px solid var(--line-strong)', borderRadius: 12, padding: 12, fontSize: 13, wordBreak: 'break-all' }}>{pix}</div>
+              <button className="os-btn os-btn--primary" onClick={copiar}><Icon n="copy" size={18} />{copiado ? 'Copiada' : 'Copiar chave Pix'}</button>
+            </>
+          ) : <span className="t-small muted">A academia ainda não cadastrou a chave Pix. Pague na recepção.</span>}
           {me.pay !== 'analise' && <button className="os-btn os-btn--secondary" onClick={paguei}>Já paguei</button>}
         </div>
       )}
       <Overline>Histórico</Overline>
       <div className="os-list">
-        {hist.map((h) => <div key={h.m} className="os-listrow"><span className="os-listrow__body"><span className="os-listrow__title" style={{ textTransform: 'capitalize' }}>{h.m}</span><span className="os-listrow__meta">{h.d}</span></span><Chip tone="success">Pago</Chip></div>)}
+        {(me.pagamentos ?? []).length === 0 && <div className="os-listrow"><span className="t-small muted">Nenhum pagamento registrado ainda.</span></div>}
+        {(me.pagamentos ?? []).map((h) => { const [y, m] = h.mes.split('-').map(Number); return (
+          <div key={h.mes} className="os-listrow"><span className="os-listrow__body"><span className="os-listrow__title" style={{ textTransform: 'capitalize' }}>{new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</span><span className="os-listrow__meta">pago em {h.data} · {h.via} · {brl(h.valor)}</span></span><Chip tone="success">Pago</Chip></div>); })}
       </div>
     </Sub>
   );

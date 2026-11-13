@@ -1,24 +1,36 @@
-import { useRef, useState } from 'react';
-import { update, logout, toast, resetDemo } from '../../data/store';
-import { Avatar, LinkCard, Overline, Setting, Sheet } from '../../ui/kit';
+import { useEffect, useRef, useState } from 'react';
+import { update, sair, toast, trocarSenha } from '../../data/store';
+import { Avatar, LinkCard, Overline, Setting, Sheet, Field } from '../../ui/kit';
 import { Icon } from '../../ui/Icon';
 import { go } from '../../ui/router';
 import { fileToAvatar } from '../../ui/photo';
 import { planoNome } from '../../data/seed';
 import { useMe } from './common';
 
+type Form = { nome: string; nasc: string; tel: string; resp: string; turma: string };
+
 export default function Perfil() {
   const { db, me } = useMe();
   const [sheet, setSheet] = useState(false);
+  const [senha, setSenha] = useState<string | null>(null);
   const cam = useRef<HTMLInputElement>(null);
   const gal = useRef<HTMLInputElement>(null);
-  const set = (k: 'nome' | 'nasc' | 'tel' | 'resp', v: string) => update((d) => { const s = d.students.find((x) => x.id === me.id)!; s[k] = v; });
+  const base: Form = { nome: me.nome, nasc: me.nasc, tel: me.tel, resp: me.resp, turma: me.turma };
+  const [f, setF] = useState<Form>(base);
+  useEffect(() => setF({ nome: me.nome, nasc: me.nasc, tel: me.tel, resp: me.resp, turma: me.turma }), [me.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mudou = JSON.stringify(f) !== JSON.stringify(base);
 
-  const onFile = async (f?: File) => {
-    if (!f) return;
+  const salvar = () => {
+    if (!f.nome.trim()) { toast('O nome não pode ficar vazio.'); return; }
+    update((d) => { Object.assign(d.students.find((x) => x.id === me.id)!, { ...f, nome: f.nome.trim() }); });
+    toast('Perfil salvo.');
+  };
+
+  const onFile = async (file?: File) => {
+    if (!file) return;
     setSheet(false);
     try {
-      const foto = await fileToAvatar(f);
+      const foto = await fileToAvatar(file);
       update((d) => { d.students.find((x) => x.id === me.id)!.foto = foto; });
       toast('Foto atualizada.');
     } catch { toast('Não foi possível abrir essa imagem.'); }
@@ -33,13 +45,8 @@ export default function Perfil() {
     if (v && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission();
   };
 
-  const F = ({ id, label, k }: { id: string; label: string; k: 'nome' | 'nasc' | 'tel' | 'resp' }) => (
-    <>
-      <label htmlFor={id} className="os-overline" style={{ letterSpacing: '0.08em', paddingTop: 12 }}>{label}</label>
-      <input id={id} defaultValue={me[k]} onBlur={(e) => { if (e.target.value !== me[k]) { set(k, e.target.value); toast('Dados salvos.'); } }}
-        style={{ height: 40, border: 0, borderBottom: '1px solid var(--line)', font: '600 15px var(--font-sans)', color: 'var(--ink)', background: 'transparent', padding: 0, outline: 'none' }} />
-    </>
-  );
+  const campo = { height: 44, border: 0, borderBottom: '1px solid var(--line)', font: '600 15px var(--font-sans)', color: 'var(--ink)', background: 'transparent', padding: 0, outline: 'none', width: '100%' } as const;
+  const lbl = { letterSpacing: '0.08em', paddingTop: 12 } as const;
 
   return (
     <div className="scroll">
@@ -48,11 +55,21 @@ export default function Perfil() {
         <button className="os-btn os-btn--quiet os-btn--sm" onClick={() => setSheet(true)}><Icon n="camera" size={16} />Alterar foto</button>
       </div>
       <div className="pad" style={{ paddingTop: 12 }}>
-        <div className="os-card os-card--flat" style={{ padding: '6px 16px 14px', gap: 0 }}>
-          <F id="f-nome" label="Nome" k="nome" />
-          <F id="f-nasc" label="Nascimento" k="nasc" />
-          <F id="f-tel" label="Telefone" k="tel" />
-          <F id="f-resp" label="Responsável" k="resp" />
+        <div className="os-card os-card--flat" style={{ padding: '6px 16px 16px', gap: 0 }}>
+          <label htmlFor="f-nome" className="os-overline" style={lbl}>Nome</label>
+          <input id="f-nome" style={campo} value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} />
+          <label htmlFor="f-nasc" className="os-overline" style={lbl}>Nascimento</label>
+          <input id="f-nasc" style={campo} inputMode="numeric" placeholder="dd/mm/aaaa" value={f.nasc} onChange={(e) => setF({ ...f, nasc: e.target.value })} />
+          <label htmlFor="f-tel" className="os-overline" style={lbl}>Telefone</label>
+          <input id="f-tel" style={campo} inputMode="tel" value={f.tel} onChange={(e) => setF({ ...f, tel: e.target.value })} />
+          <label htmlFor="f-resp" className="os-overline" style={lbl}>Responsável</label>
+          <input id="f-resp" style={campo} placeholder="Nome · telefone (se menor de idade)" value={f.resp} onChange={(e) => setF({ ...f, resp: e.target.value })} />
+          <label htmlFor="f-turma" className="os-overline" style={lbl}>Turma</label>
+          <select id="f-turma" style={{ ...campo, appearance: 'auto' }} value={f.turma} onChange={(e) => setF({ ...f, turma: e.target.value })}>
+            <option value="">Escolha sua turma</option>
+            {db.aulas.filter((a) => a.grupo !== 'Todos').map((a) => <option key={a.id} value={a.id}>{a.nome} · {a.ini}</option>)}
+          </select>
+          <button className="os-btn os-btn--primary os-btn--block" style={{ marginTop: 16 }} disabled={!mudou} onClick={salvar}>{mudou ? 'Salvar alterações' : 'Dados salvos'}</button>
         </div>
         <div className="os-list">
           <Setting title="Presença automática" sub="Usa a localização ao chegar na academia" on={me.geoAuto} onChange={togGeo} />
@@ -61,13 +78,13 @@ export default function Perfil() {
 
         <Overline>Minha conta</Overline>
         <LinkCard icon="doc" title="Meu plano" sub={`${planoNome(me.plano)}${me.fundador ? ` · fundador #${me.fundador}` : ''}`} onClick={() => go('aluno/x/contrato')} />
-        <LinkCard icon="money" title="Mensalidade" sub={me.pay === 'pago' ? 'Em dia' : me.pay === 'analise' ? 'Pagamento em análise' : 'Em aberto'} onClick={() => go('aluno/x/mensalidade')} />
+        <LinkCard icon="money" title="Mensalidade" sub={me.pay === 'pago' ? 'Em dia' : me.pay === 'analise' ? 'Pagamento em análise' : me.pay === 'atraso' ? 'Em atraso' : 'Em aberto'} onClick={() => go('aluno/x/mensalidade')} />
         <LinkCard icon="card" title="Carteirinha" onClick={() => go('aluno/x/carteirinha')} />
         <LinkCard icon="scale" title="Regras e pontuação" onClick={() => go('aluno/x/regras')} />
+        <LinkCard icon="lock" title="Trocar senha" sub={db.session?.email} onClick={() => setSenha('')} />
 
         <div className="os-card os-card--flat kv" style={{ padding: '14px 16px', flexDirection: 'row' }}><span>Equipe</span><span>{db.settings.equipe}</span></div>
-        <button className="os-btn os-btn--danger" onClick={() => { logout(); go('login'); }}>Sair</button>
-        <button className="link" style={{ alignSelf: 'center', fontWeight: 600, color: 'var(--ink-subtle)', fontSize: 12 }} onClick={() => { if (confirm('Apagar tudo que foi feito no teste e voltar aos dados de exemplo?')) { resetDemo(); toast('Dados de demonstração restaurados.'); } }}>Restaurar dados de demonstração</button>
+        <button className="os-btn os-btn--danger" onClick={() => sair()}>Sair</button>
       </div>
 
       <input ref={cam} type="file" accept="image/*" capture="user" hidden onChange={(e) => onFile(e.target.files?.[0])} />
@@ -77,6 +94,12 @@ export default function Perfil() {
           <button className="sheet-opt" onClick={() => cam.current?.click()}>Tirar foto</button>
           <button className="sheet-opt" onClick={() => gal.current?.click()}>Escolher da galeria</button>
           {me.foto && <button className="sheet-opt" style={{ color: 'var(--danger)', borderBottom: 0 }} onClick={() => { update((d) => { delete d.students.find((x) => x.id === me.id)!.foto; }); setSheet(false); toast('Foto removida.'); }}>Remover foto</button>}
+        </Sheet>
+      )}
+      {senha !== null && (
+        <Sheet title="Trocar senha" onClose={() => setSenha(null)}>
+          <Field label="Nova senha"><input className="os-input" type="password" autoComplete="new-password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="mínimo 6 caracteres" /></Field>
+          <button className="os-btn os-btn--primary os-btn--block" onClick={async () => { if (senha.length < 6) { toast('Mínimo 6 caracteres.'); return; } const r = await trocarSenha(senha); toast(r ?? 'Senha alterada.'); if (!r) setSenha(null); }}>Salvar senha</button>
         </Sheet>
       )}
     </div>

@@ -10,25 +10,25 @@ import * as P2 from './Subs2';
 import Ranking from '../shared/Ranking';
 import Notificacoes from '../shared/Notificacoes';
 
+export function ProfSub({ sub, id }: { sub?: string; id?: string }) {
+  const M: Record<string, () => JSX.Element> = {
+    notif: () => <Notificacoes to="prof" fallback="prof/chamada" />,
+    ranking: () => <Ranking prof fallback="prof/mais" />,
+    painel: () => <P.Painel />, graduacao: () => <P.Graduacao />, aviso: () => <P.Comunicado />, geo: () => <P.AreaGeo />,
+    academia: () => <P.Academia />, grade: () => <P.GerenciarGrade />, novaaula: () => <P.NovaAula id={id} />, qr: () => <P.QRAula classId={id} />,
+    plano: () => <P2.PlanoAula />, convidar: () => <P2.Convidar />, historico: () => <P2.Historico sid={id} />, avaliacao: () => <P2.Avaliacao sid={id} />,
+    requisitos: () => <P2.Requisitos />, publicar: () => <P2.Publicar />, financeiro: () => <P2.Financeiro />, relatorios: () => <P2.Relatorios />,
+    perfil: () => <P2.PerfilProf />, contratos: () => <P2.Contratos />, acesso: () => <P2.Acesso />,
+  };
+  return (M[sub ?? ''] ?? (() => <Mais />))();
+}
+
 export default function ProfApp({ route }: { route: string[] }) {
   const db = useDB();
   const tab = route[0] ?? 'chamada';
   const pend = db.att.filter((x) => x.status === 'pend').length;
 
-  if (tab === 'x') {
-    const sub = route[1];
-    const id = route[2];
-    const M: Record<string, JSX.Element> = {
-      notif: <Notificacoes to="prof" fallback="prof/chamada" />,
-      ranking: <Ranking prof fallback="prof/mais" />,
-      painel: <P.Painel />, graduacao: <P.Graduacao />, aviso: <P.Comunicado />, geo: <P.AreaGeo />,
-      academia: <P.Academia />, grade: <P.GerenciarGrade />, novaaula: <P.NovaAula id={id} />, qr: <P.QRAula classId={id} />,
-      plano: <P2.PlanoAula />, convidar: <P2.Convidar />, historico: <P2.Historico sid={id} />, avaliacao: <P2.Avaliacao sid={id} />,
-      requisitos: <P2.Requisitos />, publicar: <P2.Publicar />, financeiro: <P2.Financeiro />, relatorios: <P2.Relatorios />,
-      perfil: <P2.PerfilProf />, contratos: <P2.Contratos />, acesso: <P2.Acesso />,
-    };
-    return M[sub] ?? <Mais />;
-  }
+  if (tab === 'x') return <ProfSub sub={route[1]} id={route[2]} />;
   if (tab === 'aluno') return <AlunoDetalhe sid={route[1]} />;
 
   return (

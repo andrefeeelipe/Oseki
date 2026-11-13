@@ -1,12 +1,12 @@
-import { useState } from 'react';
-import { useDB, update, toast, notify } from '../../data/store';
+import { useRef, useState } from 'react';
+import { useDB, update, toast, notify, novoAluno, registrarPagamento, sair, trocarSenha } from '../../data/store';
+import { fileToAvatar } from '../../ui/photo';
 import { PLANOS, planoNome } from '../../data/seed';
 import type { BeltName, TecnicaNivel } from '../../data/types';
-import { ADULTO, INFANTIL, MES, addDays, aulaById, freq, freqMes, grupoDe, iso, presencas, today, uid, iniciais, br, MES_LONG } from '../../data/util';
-import { Sub, Avatar, Bars, Chip, Overline, Setting, Field, Stepper, Calendar, Legend, type DayState, LinkCard } from '../../ui/kit';
+import { ADULTO, INFANTIL, MES, addDays, aulaById, freq, freqMes, grupoDe, iso, presencas, today, uid, iniciais, br, MES_LONG, valorDe, brl, mesAtual } from '../../data/util';
+import { Sub, Avatar, Bars, Chip, Overline, Setting, Field, Stepper, Calendar, Legend, type DayState, LinkCard, Sheet } from '../../ui/kit';
 import { Icon } from '../../ui/Icon';
 import { go } from '../../ui/router';
-import { logout } from '../../data/store';
 import { entradasHoje } from './access';
 
 /* N6 · Plano de aula */
@@ -20,7 +20,7 @@ export function PlanoAula() {
     d.settings.planoAula.tecnica = tec;
     d.tecnicas.forEach((t) => { t.semana = false; });
     const ex = d.tecnicas.find((t) => t.titulo.toLowerCase() === tec.toLowerCase());
-    if (ex) ex.semana = true; else d.tecnicas.unshift({ id: uid(), titulo: tec, cat: 'Aula', faixaMin: 'Branca', dur: '—', desc: 'Técnica do dia definida no plano de aula.', semana: true });
+    if (ex) ex.semana = true; else d.tecnicas.unshift({ id: uid(), titulo: tec, cat: 'Aula', faixaMin: 'Branca', dur: '', desc: 'Técnica do dia definida no plano de aula.', semana: true });
   });
   return (
     <Sub title="Plano de aula" sub={`${p.passos.reduce((a, b) => a + b.min, 0)} min`} fallback="prof/mais" admin>
@@ -49,33 +49,37 @@ export function PlanoAula() {
 export function Convidar() {
   const db = useDB();
   const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
   const [tel, setTel] = useState('');
-  const [turma, setTurma] = useState(db.aulas[1]?.id ?? '');
+  const [turma, setTurma] = useState(db.aulas.find((a) => a.grupo !== 'Todos')?.id ?? '');
   const [belt, setBelt] = useState<BeltName>('Branca');
-  const link = `${location.origin}${location.pathname}#/login?c=${db.settings.codigo}`;
-  const msg = `Oss${nome ? ', ' + nome.split(' ')[0] : ''}! Você foi convidado para o app da ${db.settings.academia}. Baixe/abra: ${link} e use o código ${db.settings.codigo}.`;
+  const link = 'https://andrefeeelipe.github.io/Oseki/';
+  const msg = `Oss${nome ? ', ' + nome.split(' ')[0] : ''}! Você foi convidado para o app da ${db.settings.academia}. Abra ${link} (ou baixe o app Android em github.com/andrefeeelipe/Oseki/releases/latest), toque em "Criar conta", use este e-mail (${email || 'seu e-mail'}) e o código ${db.settings.codigo}.`;
   const criar = () => {
     if (!nome.trim()) { toast('Informe o nome do aluno.'); return false; }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) { toast('Informe o e-mail do aluno: ele usa o mesmo e-mail para criar a conta.'); return false; }
+    const agora = `${MES[today().getMonth()]} ${today().getFullYear()}`;
     update((d) => {
-      const id = 's' + uid();
-      d.students.push({ id, nome: nome.trim(), email: nome.trim().split(' ')[0].toLowerCase() + '@demo.oseki', belt, graus: 0, aulas: 0, apto: false, nasc: '', turma, tel, resp: '', notes: [], hist: [{ t: 'Início no Jiu-Jitsu', d: `${MES[today().getMonth()]} ${today().getFullYear()}` }], desde: `${MES[today().getMonth()]} ${today().getFullYear()}`, matricula: String(300 + d.students.length).padStart(6, '0'), plano: 'avulso', mesesEmDia: 0, pay: 'aberto', contrato: { assinado: false, vig: '—', renova: false, status: 'assin' }, tecnicas: {}, geoAuto: true, notif: true, convidado: true });
+      d.students.push(novoAluno({ id: crypto.randomUUID(), nome: nome.trim(), email: email.trim().toLowerCase(), belt, turma, tel, convidado: true, desde: agora, matricula: String(Date.now()).slice(-6), hist: [{ t: 'Início no Jiu-Jitsu', d: agora }] }));
     });
     return true;
   };
   return (
     <Sub title="Convidar" sub="Novo aluno" fallback="prof/alunos" admin>
+      <span className="t-small muted" style={{ padding: '0 4px' }}>A ficha do aluno já fica pronta. Quando ele criar a conta com o mesmo e-mail, entra direto nela.</span>
       <Field label="Nome do aluno"><input className="os-input" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome completo" /></Field>
+      <Field label="E-mail do aluno"><input className="os-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="aluno@email.com" /></Field>
       <Field label="WhatsApp do aluno ou responsável"><input className="os-input" inputMode="tel" value={tel} onChange={(e) => setTel(e.target.value)} placeholder="(11) 90000-0000" /></Field>
       <span className="os-field__label">Turma</span>
       <div className="scroll-x">{db.aulas.filter((a) => a.grupo !== 'Todos').map((a) => <button key={a.id} className="os-pill" aria-pressed={turma === a.id} onClick={() => setTurma(a.id)}>{a.nome}</button>)}</div>
       <span className="os-field__label">Faixa inicial</span>
-      <div className="scroll-x">{(['Branca', 'Cinza e Branca', 'Amarela', 'Azul', 'Roxa'] as BeltName[]).map((b) => <button key={b} className="os-pill" aria-pressed={belt === b} onClick={() => setBelt(b)}>{b}</button>)}</div>
+      <div className="scroll-x">{(['Branca', 'Cinza e Branca', 'Amarela', 'Laranja', 'Verde', 'Azul', 'Roxa', 'Marrom'] as BeltName[]).map((b) => <button key={b} className="os-pill" aria-pressed={belt === b} onClick={() => setBelt(b)}>{b}</button>)}</div>
       <div className="os-card os-card--flat">
-        <span className="os-field__label">Link de convite</span>
-        <span className="t-mono" style={{ fontSize: 12, wordBreak: 'break-all' }}>{link}</span>
-        <button className="os-btn os-btn--quiet os-btn--sm" style={{ alignSelf: 'flex-start' }} onClick={async () => { try { await navigator.clipboard.writeText(link); toast('Link copiado.'); } catch { toast('Copie o link manualmente.'); } }}><Icon n="copy" size={16} />Copiar link</button>
+        <span className="os-field__label">Código da academia</span>
+        <span className="t-mono">{db.settings.codigo}</span>
       </div>
-      <button className="os-btn os-btn--primary os-btn--block" onClick={() => { if (!criar()) return; window.open(`https://wa.me/${tel ? '55' + tel.replace(/\D/g, '') : ''}?text=${encodeURIComponent(msg)}`, '_blank'); toast('Aluno adicionado à lista. Convite aberto no WhatsApp.'); setNome(''); setTel(''); }}><Icon n="send" size={18} />Enviar no WhatsApp</button>
+      <button className="os-btn os-btn--primary os-btn--block" onClick={() => { if (!criar()) return; window.open(`https://wa.me/${tel ? '55' + tel.replace(/\D/g, '') : ''}?text=${encodeURIComponent(msg)}`, '_blank'); toast('Ficha criada. Convite aberto no WhatsApp.'); setNome(''); setEmail(''); setTel(''); }}><Icon n="send" size={18} />Criar ficha e enviar no WhatsApp</button>
+      <button className="os-btn os-btn--secondary os-btn--block" onClick={() => { if (criar()) { toast('Ficha criada.'); setNome(''); setEmail(''); setTel(''); } }}>Só criar a ficha</button>
     </Sub>
   );
 }
@@ -169,7 +173,7 @@ export function Requisitos() {
 /* N11 · Publicar técnica */
 export function Publicar() {
   const db = useDB();
-  const [f, setF] = useState({ titulo: '', cat: 'Guarda', faixaMin: 'Branca', semana: false, video: '' as string, nomeVideo: '' });
+  const [f, setF] = useState({ titulo: '', cat: 'Guarda', faixaMin: 'Branca', semana: false, video: '', desc: '' });
   const [ok, setOk] = useState(false);
   if (ok) return (
     <Sub title="Publicar técnica" fallback="prof/mais" admin>
@@ -177,33 +181,29 @@ export function Publicar() {
         <Icon n="checkCircle" size={40} style={{ color: 'var(--success)' }} />
         <span className="t-display-sm">Técnica publicada</span>
         <span className="t-small muted">Já aparece na biblioteca dos alunos a partir da faixa {f.faixaMin.toLowerCase()}.</span>
-        <button className="os-btn os-btn--primary os-btn--block" onClick={() => { setOk(false); setF({ ...f, titulo: '', video: '', nomeVideo: '', semana: false }); }}>Publicar outra</button>
+        <button className="os-btn os-btn--primary os-btn--block" onClick={() => { setOk(false); setF({ ...f, titulo: '', video: '', desc: '', semana: false }); }}>Publicar outra</button>
       </div>
     </Sub>
   );
   return (
     <Sub title="Publicar técnica" sub="Biblioteca da academia" fallback="prof/mais" admin>
-      <label className="os-card os-card--flat center" style={{ border: '1.5px dashed var(--line-strong)', cursor: 'pointer', padding: 24 }}>
-        <Icon n="video" size={28} />
-        <span className="t-strong">{f.nomeVideo || 'Enviar vídeo'}</span>
-        <span className="t-sub">Grave pelo celular ou escolha da galeria</span>
-        <input type="file" accept="video/*" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) setF({ ...f, video: URL.createObjectURL(file), nomeVideo: file.name }); }} />
-      </label>
-      <Field label="Título"><input className="os-input" value={f.titulo} onChange={(e) => setF({ ...f, titulo: e.target.value })} placeholder="Ex.: Passagem toreando" /></Field>
+      <Field label="Link do vídeo (YouTube, Instagram ou Google Drive)"><input className="os-input" type="url" value={f.video} onChange={(e) => setF({ ...f, video: e.target.value })} placeholder="https://youtu.be/…" /></Field>
+      <span className="t-sub" style={{ padding: '0 4px' }}>Dica: suba o vídeo no YouTube como "não listado" e cole o link aqui.</span>
+      <Field label="Título da técnica"><input className="os-input" value={f.titulo} onChange={(e) => setF({ ...f, titulo: e.target.value })} placeholder="Ex.: Passagem toreando" /></Field>
       <span className="os-field__label">Categoria</span>
       <div className="scroll-x">{['Guarda', 'Passagem', 'Raspagem', 'Finalização', 'Defesa', 'Quedas'].map((c) => <button key={c} className="os-pill" aria-pressed={f.cat === c} onClick={() => setF({ ...f, cat: c })}>{c}</button>)}</div>
       <span className="os-field__label">Liberar a partir da faixa</span>
       <div className="scroll-x">{ADULTO.map((c) => <button key={c} className="os-pill" aria-pressed={f.faixaMin === c} onClick={() => setF({ ...f, faixaMin: c })}>{c}</button>)}</div>
       <div className="os-list"><Setting title="Posição da semana" sub="Destaque no início do app do aluno" on={f.semana} onChange={(v) => setF({ ...f, semana: v })} /></div>
+      <Field label="Descrição"><textarea className="textarea" value={f.desc} onChange={(e) => setF({ ...f, desc: e.target.value })} placeholder="Pontos-chave da técnica" /></Field>
       <button className="os-btn os-btn--primary os-btn--block" disabled={!f.titulo.trim()} onClick={() => {
         update((d) => {
           if (f.semana) d.tecnicas.forEach((t) => { t.semana = false; });
-          d.tecnicas.unshift({ id: uid(), titulo: f.titulo.trim(), cat: f.cat, faixaMin: f.faixaMin, dur: '—', desc: 'Nova técnica publicada pelo professor.', semana: f.semana, video: f.video || undefined, novo: true });
+          d.tecnicas.unshift({ id: uid(), titulo: f.titulo.trim(), cat: f.cat, faixaMin: f.faixaMin, dur: '—', desc: f.desc.trim(), semana: f.semana, video: f.video.trim() || undefined, novo: true });
           d.students.forEach((s) => notify(d, s.id, 'Nova técnica na biblioteca', f.titulo.trim(), 'aviso'));
         });
         setOk(true);
       }}>Publicar técnica</button>
-      {f.video && <span className="t-sub">Na demonstração, o vídeo fica só neste aparelho até fechar o app.</span>}
     </Sub>
   );
 }
@@ -211,33 +211,49 @@ export function Publicar() {
 /* N12 · Financeiro */
 export function Financeiro() {
   const db = useDB();
-  const abertos = db.students.filter((s) => s.pay !== 'pago');
-  const pagos = db.students.filter((s) => s.pay === 'pago');
-  const confirmar = (sid: string) => update((d) => { const s = d.students.find((x) => x.id === sid)!; s.pay = 'pago'; s.payDias = undefined; s.mesesEmDia += 1; notify(d, sid, 'Mensalidade paga', 'Pagamento confirmado pela academia. Oss!', 'pay'); });
+  const [pg, setPg] = useState<null | { sid: string; valor: string; via: string }>(null);
+  const ativos = db.students.filter((s) => s.status !== 'inativo');
+  const abertos = ativos.filter((s) => s.pay !== 'pago').sort((a, b) => (b.pay === 'analise' ? 1 : 0) - (a.pay === 'analise' ? 1 : 0));
+  const pagos = ativos.filter((s) => s.pay === 'pago');
+  const m = mesAtual();
+  const recebido = ativos.reduce((t, s) => t + (s.pagamentos ?? []).filter((p) => p.mes === m).reduce((a, p) => a + p.valor, 0), 0);
+  const previsto = ativos.reduce((t, s) => t + valorDe(db, s), 0);
   const cobrar = (sid: string) => update((d) => { notify(d, sid, 'Lembrete de mensalidade', 'Sua mensalidade está em aberto. Pague pelo app com Pix.', 'pay'); });
+  const semPreco = PLANOS.some((p) => !db.settings.precos?.[p.id]);
   return (
     <Sub title="Financeiro" sub="Mensalidades" fallback="prof/mais" admin>
       <div className="os-card os-card--night" style={{ padding: 18 }}>
         <span className="os-muted t-small" style={{ textTransform: 'capitalize' }}>Recebido em {MES_LONG[today().getMonth()].toLowerCase()}</span>
-        <span className="t-stat" style={{ fontSize: 40 }}>R$ [VALOR]</span>
-        <span className="os-muted t-small">{pagos.length} de {db.students.length} mensalidades pagas · vencimento dia 15</span>
-        <div className="os-bar" style={{ background: 'rgba(255,255,255,0.15)' }}><div className="os-bar__fill" style={{ width: `${(pagos.length / db.students.length) * 100}%`, background: '#5CC48A' }} /></div>
+        <span className="t-stat" style={{ fontSize: 40 }}>{recebido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+        <span className="os-muted t-small">{pagos.length} de {ativos.length} pagas · previsto {previsto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · vencimento dia {db.settings.vencimento || 15}</span>
+        <div className="os-bar" style={{ background: 'rgba(255,255,255,0.15)' }}><div className="os-bar__fill" style={{ width: `${ativos.length ? (pagos.length / ativos.length) * 100 : 0}%`, background: '#5CC48A' }} /></div>
       </div>
+      {semPreco && <button className="card-link" onClick={() => go('prof/x/academia')}><span className="ic"><Icon n="money" size={20} /></span><span className="grow col"><span className="t-strong" style={{ fontSize: 14 }}>Defina os valores dos planos</span><span className="t-sub">Em Dados da academia</span></span></button>}
       <Overline>Em aberto</Overline>
       <div className="os-list">
         {abertos.length === 0 && <div className="os-listrow"><span className="t-small muted">Todas pagas. Oss!</span></div>}
         {abertos.map((s) => (
           <div key={s.id} className="os-listrow">
             <Avatar s={s} size={34} />
-            <span className="os-listrow__body"><span className="os-listrow__title">{s.nome}</span><span className="os-listrow__meta">{planoNome(s.plano)} · {s.pay === 'atraso' ? `${s.payDias} dias de atraso` : s.pay === 'analise' ? 'aluno informou pagamento' : 'vence dia 15'}</span></span>
-            {s.pay === 'analise' ? <button className="os-btn os-btn--primary os-btn--sm" onClick={() => { confirmar(s.id); toast('Pagamento confirmado.'); }}>Confirmar</button> : <button className={`os-btn os-btn--sm ${s.pay === 'atraso' ? 'os-btn--danger' : 'os-btn--secondary'}`} onClick={() => { cobrar(s.id); toast(`Lembrete enviado para ${s.nome.split(' ')[0]}.`); }}>Cobrar</button>}
+            <span className="os-listrow__body"><span className="os-listrow__title">{s.nome}</span><span className="os-listrow__meta">{planoNome(s.plano)} · {brl(valorDe(db, s))} · {s.pay === 'atraso' ? `${s.payDias} dias de atraso` : s.pay === 'analise' ? 'aluno informou o Pix' : `vence dia ${db.settings.vencimento || 15}`}</span></span>
+            {s.pay === 'analise'
+              ? <button className="os-btn os-btn--primary os-btn--sm" onClick={() => setPg({ sid: s.id, valor: String(valorDe(db, s) || ''), via: 'Pix' })}>Confirmar</button>
+              : <div className="row" style={{ gap: 6 }}><button className={`os-btn os-btn--sm ${s.pay === 'atraso' ? 'os-btn--danger' : 'os-btn--secondary'}`} onClick={() => { cobrar(s.id); toast(`Lembrete enviado para ${s.nome.split(' ')[0]}.`); }}>Cobrar</button><button className="os-btn os-btn--quiet os-btn--sm" onClick={() => setPg({ sid: s.id, valor: String(valorDe(db, s) || ''), via: 'Dinheiro' })}>Pago</button></div>}
           </div>
         ))}
       </div>
       <Overline>Pagos</Overline>
       <div className="os-list">
-        {pagos.map((s) => <div key={s.id} className="os-listrow"><span className="os-listrow__body"><span className="os-listrow__title">{s.nome}</span><span className="os-listrow__meta">{planoNome(s.plano)}</span></span><Chip tone="success">Pago</Chip></div>)}
+        {pagos.length === 0 && <div className="os-listrow"><span className="t-small muted">Nenhum pagamento neste mês.</span></div>}
+        {pagos.map((s) => { const p = (s.pagamentos ?? []).find((x) => x.mes === m); return <div key={s.id} className="os-listrow"><span className="os-listrow__body"><span className="os-listrow__title">{s.nome}</span><span className="os-listrow__meta">{p?.via} · {p?.data}</span></span><span className="t-strong">{brl(p?.valor ?? 0)}</span></div>; })}
       </div>
+      {pg && (
+        <Sheet title="Registrar pagamento" onClose={() => setPg(null)}>
+          <Field label="Valor (R$)"><input className="os-input" inputMode="decimal" value={pg.valor} onChange={(e) => setPg({ ...pg, valor: e.target.value })} /></Field>
+          <div className="scroll-x">{['Pix', 'Dinheiro', 'Cartão', 'Transferência'].map((v) => <button key={v} className="os-pill" aria-pressed={pg.via === v} onClick={() => setPg({ ...pg, via: v })}>{v}</button>)}</div>
+          <button className="os-btn os-btn--primary os-btn--block" onClick={() => { registrarPagamento(pg.sid, Number(pg.valor.replace(',', '.')) || 0, pg.via); setPg(null); toast('Pagamento registrado.'); }}>Confirmar pagamento</button>
+        </Sheet>
+      )}
     </Sub>
   );
 }
@@ -281,25 +297,50 @@ export function Relatorios() {
 /* N15 · Perfil do professor */
 export function PerfilProf() {
   const db = useDB();
-  const [a, setA] = useState(true);
-  const [r, setR] = useState(true);
+  const eu = db.profs.find((p) => p.id === db.session?.sid);
+  const [f, setF] = useState({ nome: eu?.nome ?? '', tel: eu?.tel ?? '', belt: (eu?.belt ?? 'Preta') as BeltName, graus: eu?.graus ?? 0 });
+  const [senha, setSenha] = useState<string | null>(null);
+  const cam = useRef<HTMLInputElement>(null);
+  const mudou = !!eu && (f.nome !== eu.nome || f.tel !== eu.tel || f.belt !== eu.belt || f.graus !== eu.graus);
+  const minhas = db.aulas.filter((x) => x.prof === eu?.nome);
+  const salvar = () => {
+    if (!f.nome.trim()) { toast('Informe seu nome.'); return; }
+    update((d) => {
+      const p = d.profs.find((x) => x.id === d.session?.sid)!;
+      const antigo = p.nome;
+      Object.assign(p, { ...f, nome: f.nome.trim() });
+      d.aulas.forEach((a) => { if (a.prof === antigo) a.prof = p.nome; });
+    });
+    toast('Perfil salvo.');
+  };
   return (
     <Sub title="Meu perfil" fallback="prof/mais" admin>
       <div className="col center" style={{ gap: 10 }}>
-        <div className="os-avatar av-96" style={{ ['--ring' as string]: 'var(--belt-preta)' }}>PM</div>
-        <span className="t-display-sm">Prof. Marangoni</span>
-        <span className="t-sub">Faixa preta · 3º grau · {db.settings.equipe}</span>
+        <Avatar s={{ nome: f.nome || 'Professor', belt: f.belt, foto: eu?.foto }} size={96} />
+        <button className="os-btn os-btn--quiet os-btn--sm" onClick={() => cam.current?.click()}><Icon n="camera" size={16} />Alterar foto</button>
+        <input ref={cam} type="file" accept="image/*" hidden onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; const foto = await fileToAvatar(file); update((d) => { d.profs.find((x) => x.id === d.session?.sid)!.foto = foto; }); toast('Foto atualizada.'); }} />
       </div>
+      <Field label="Nome (como aparece para os alunos)"><input className="os-input" value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} placeholder="Ex.: Prof. Diego Oseki" /></Field>
+      <Field label="Telefone"><input className="os-input" inputMode="tel" value={f.tel} onChange={(e) => setF({ ...f, tel: e.target.value })} /></Field>
+      <span className="os-field__label">Faixa</span>
+      <div className="scroll-x">{ADULTO.map((b) => <button key={b} className="os-pill" aria-pressed={f.belt === b} onClick={() => setF({ ...f, belt: b })}>{b}</button>)}</div>
+      <span className="os-field__label">Graus</span>
+      <div className="seg">{[0, 1, 2, 3, 4, 5, 6].map((n) => <button key={n} aria-pressed={f.graus === n} onClick={() => setF({ ...f, graus: n })}>{n}</button>)}</div>
+      <button className="os-btn os-btn--primary os-btn--block" disabled={!mudou} onClick={salvar}>{mudou ? 'Salvar alterações' : 'Dados salvos'}</button>
       <div className="grid-3">
-        {[[db.aulas.filter((x) => x.prof === 'Prof. Marangoni').length, 'turmas'], [db.aulas.filter((x) => x.prof === 'Prof. Marangoni').reduce((s, x) => s + x.dias.length, 0), 'aulas/sem.'], [23, 'graduações']].map(([v, l]) => <div key={l as string} className="os-stat" style={{ padding: 12 }}><span className="os-stat__value" style={{ fontSize: 26 }}>{v}</span><span className="os-stat__label">{l}</span></div>)}
+        {[[minhas.length, 'turmas'], [minhas.reduce((t, x) => t + x.dias.length, 0), 'aulas/sem.'], [db.students.filter((x) => x.status !== 'inativo').length, 'alunos']].map(([v, l]) => <div key={l as string} className="os-stat" style={{ padding: 12 }}><span className="os-stat__value" style={{ fontSize: 26 }}>{v}</span><span className="os-stat__label">{l}</span></div>)}
       </div>
-      <div className="os-list">
-        <Setting title="Avisar novas marcações" sub="Quando um aluno marcar presença" on={a} onChange={setA} />
-        <Setting title="Resumo diário" sub="Às 22:00, presenças e pendências do dia" on={r} onChange={setR} />
-      </div>
-      <LinkCard icon="settings" title="Dados da academia" onClick={() => go('prof/x/academia')} />
+      <div className="kv" style={{ padding: '0 4px' }}><span>E-mail de acesso</span><span>{db.session?.email}</span></div>
+      <LinkCard icon="settings" title="Dados da academia" sub="Valores, Pix, códigos e equipe" onClick={() => go('prof/x/academia')} />
       <LinkCard icon="star" title="Requisitos de graduação" onClick={() => go('prof/x/requisitos')} />
-      <button className="os-btn os-btn--danger" onClick={() => { logout(); go('login'); }}>Sair</button>
+      <LinkCard icon="lock" title="Trocar senha" onClick={() => setSenha('')} />
+      <button className="os-btn os-btn--danger" onClick={() => sair()}>Sair</button>
+      {senha !== null && (
+        <Sheet title="Trocar senha" onClose={() => setSenha(null)}>
+          <Field label="Nova senha"><input className="os-input" type="password" autoComplete="new-password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="mínimo 6 caracteres" /></Field>
+          <button className="os-btn os-btn--primary os-btn--block" onClick={async () => { if (senha.length < 6) { toast('Mínimo 6 caracteres.'); return; } const r = await trocarSenha(senha); toast(r ?? 'Senha alterada.'); if (!r) setSenha(null); }}>Salvar senha</button>
+        </Sheet>
+      )}
     </Sub>
   );
 }

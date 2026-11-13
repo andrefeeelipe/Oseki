@@ -156,3 +156,6 @@ input, textarea, select { font-family: inherit; }
   .desk-main { padding: 20px 16px 40px; }
   .desk-login { grid-template-columns: 1fr; }
 }
+.desk .sheet-bg { position: fixed; align-items: center; justify-content: center; padding: 24px; }
+.desk .sheet { max-width: 460px; border-radius: var(--radius-2xl); }
+.desk .scroll { height: auto; overflow: visible; }

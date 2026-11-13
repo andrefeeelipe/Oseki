@@ -7,26 +7,65 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "android": "npm run build && npx cap sync android"
-  },
-  "dependencies": {
-    "@fontsource/barlow-condensed": "^5.1.0",
-    "@fontsource/inter": "^5.1.0",
-    "jsqr": "^1.4.0",
-    "qrcode": "^1.5.4",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "android": "npm run build && npx cap sync android",
+    "build:desktop": "tsc -b && vite build --mode desktop",
+    "desktop": "npm run build:desktop && electron .",
+    "dist:win": "npm run build:desktop && electron-builder --win --publish never"
   },
   "devDependencies": {
     "@capacitor/android": "^6.2.0",
     "@capacitor/cli": "^6.2.0",
     "@capacitor/core": "^6.2.0",
+    "@electric-sql/pglite": "^0.5.16",
+    "@fontsource/barlow-condensed": "^5.1.0",
+    "@fontsource/inter": "^5.1.0",
+    "@supabase/supabase-js": "^2.119.0",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "typescript": "~5.6.3",
     "vite": "^5.4.11",
     "vite-plugin-pwa": "^0.21.1"
-  }
+  },
+  "main": "electron/main.cjs",
+  "description": "Oseki BJJ — app da academia (aluno, professor e painel)",
+  "author": "Oseki BJJ",
+  "build": {
+    "appId": "br.com.osekibjj.painel",
+    "productName": "Oseki BJJ Painel",
+    "files": [
+      "dist-desktop/**",
+      "electron/**",
+      "build/icon.png"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "OsekiBJJ-Painel-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Oseki BJJ Painel"
+    }
+  },
+  "dependencies": {}
 }

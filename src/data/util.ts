@@ -152,3 +152,24 @@ export function naJanela(a: Aula, now = new Date()) {
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
 export const pct = (a: number, b: number) => (b ? Math.min(100, Math.round((a / b) * 100)) : 0);
+
+/* ---------- Mensalidade ---------- */
+export const mesAtual = () => iso(today()).slice(0, 7);
+export const brl = (v: number) => (v ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor a definir');
+
+/** Valor da mensalidade do aluno: preço do plano, com desconto de fundador. */
+export function valorDe(db: DB, s: Student) {
+  const base = db.settings.precos?.[s.plano] ?? 0;
+  return s.fundador && s.plano !== 'avulso' ? Math.round(base * (100 - db.settings.fundadorDesconto)) / 100 : base;
+}
+
+/** Situação do mês atual, calculada pelos pagamentos registrados. */
+export function situacao(db: DB, s: Student): { pay: Student['pay']; dias?: number } {
+  const m = mesAtual();
+  if ((s.pagamentos ?? []).some((p) => p.mes === m)) return { pay: 'pago' };
+  if (s.payInformado === m) return { pay: 'analise' };
+  const venc = db.settings.vencimento || 15;
+  const dia = today().getDate();
+  if (dia > venc) return { pay: 'atraso', dias: dia - venc };
+  return { pay: 'aberto' };
+}

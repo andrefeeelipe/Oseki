@@ -7,7 +7,7 @@ import { Sub, Avatar } from '../../ui/kit';
 export function rankingDe(db: DB, per: number, grp: string) {
   const from = per === 0 ? addDays(today(), -today().getDay()) : per === 1 ? new Date(today().getFullYear(), today().getMonth(), 1) : new Date(today().getFullYear(), 0, 1);
   return db.students
-    .filter((s) => grp === 'Todos' || grupoDe(s) === grp)
+    .filter((s) => s.status !== 'inativo' && (grp === 'Todos' || grupoDe(s) === grp))
     .map((s) => ({ s, v: new Set(presencas(db, s.id, from, today()).map((x) => x.date + x.classId)).size, seq: semanasSeguidas(db, s.id) }))
     .sort((a, b) => b.v - a.v || a.s.nome.localeCompare(b.s.nome));
 }

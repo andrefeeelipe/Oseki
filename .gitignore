@@ -1,5 +1,8 @@
 node_modules
 dist
+dist-desktop
+release
 android
 *.log
 .DS_Store
+.env*
