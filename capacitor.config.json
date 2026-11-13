@@ -1,0 +1,6 @@
+{
+  "appId": "br.com.osekibjj.app",
+  "appName": "Oseki BJJ",
+  "webDir": "dist",
+  "android": { "backgroundColor": "#121A24" }
+}

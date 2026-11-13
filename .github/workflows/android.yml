@@ -1,0 +1,75 @@
+name: Gerar APK Android
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run build
+        env:
+          BASE: ./
+      - name: Criar projeto Android (Capacitor)
+        run: |
+          npx cap add android
+          npx cap sync android
+      - name: Permissões (localização e câmera)
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-feature android:name="android.hardware.location.gps" android:required="false" />#' $M
+          grep -n permission $M
+      - name: Ícone do app
+        run: |
+          sudo apt-get install -y librsvg2-bin >/dev/null
+          for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            n=${d%%:*}; s=${d##*:}
+            dir=android/app/src/main/res/mipmap-$n
+            rsvg-convert -w $s -h $s public/icon.svg -o $dir/ic_launcher.png
+            cp $dir/ic_launcher.png $dir/ic_launcher_round.png
+            rsvg-convert -w $s -h $s public/icon.svg -o $dir/ic_launcher_foreground.png
+          done
+          rm -rf android/app/src/main/res/mipmap-anydpi-v26
+      - name: Compilar APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - run: cp android/app/build/outputs/apk/debug/app-debug.apk OsekiBJJ.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OsekiBJJ-apk
+          path: OsekiBJJ.apk
+      - name: Mover a tag para este commit
+        run: |
+          git tag -f ultima-versao
+          git push -f origin ultima-versao
+      - name: Publicar na release "ultima-versao"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ultima-versao
+          name: Oseki BJJ · última versão
+          prerelease: false
+          make_latest: true
+          files: OsekiBJJ.apk
+          body: |
+            APK de teste do app Oseki BJJ (gerado automaticamente a cada atualização).
+            Baixe **OsekiBJJ.apk** no celular Android e instale (permita "instalar apps desconhecidos").
+            Versão web: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/

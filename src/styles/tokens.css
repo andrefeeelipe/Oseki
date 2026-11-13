@@ -1,0 +1,106 @@
+/* Oseki App — tokens (gerado a partir do design system "Oseki App"). */
+:root {
+  --tatame: #F4F2EE;
+  --surface: #FFFFFF;
+  --surface-sunken: #FAF9F7;
+  --line: #ECE8E1;
+  --line-strong: #DCD6CC;
+  --ink: #121A24;
+  --ink-muted: #4F5763;
+  --ink-subtle: #5E6773;
+  --brand: #1E3248;
+  --brand-ink: #1E3248;
+  --on-brand: #FFFFFF;
+  --night: #121A24;
+  --on-night: #FFFFFF;
+  --on-night-muted: #C9D2DC;
+  --ponteira: #C62A2F;
+  --fundador: #F5C84B;
+  --fundador-ink: #7A5000;
+  --fundador-soft: #FFF1CC;
+  --success: #1F6B3D;
+  --success-soft: #E3F3E9;
+  --warning: #7A5000;
+  --warning-soft: #FFF1CC;
+  --danger: #B42318;
+  --danger-soft: #FDECEA;
+  --info-soft: #EEF1F5;
+  --switch-off: #CFC8BC;
+
+  --belt-branca: #FFFFFF;
+  --belt-branca-borda: #CFC8BC;
+  --belt-cinza: #8E9AAF;
+  --belt-amarela: #F5B700;
+  --belt-laranja: #F06A1D;
+  --belt-verde: #1E8E4A;
+  --belt-azul: #1F5FD1;
+  --belt-roxa: #6B2FA8;
+  --belt-marrom: #6B3A16;
+  --belt-preta: #111111;
+  --belt-grau: #FFFFFF;
+
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-3-5: 14px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-10: 40px;
+  --space-14: 56px;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 4px 16px rgba(18,26,36,0.05);
+  --shadow-control: 0 2px 8px rgba(18,26,36,0.06);
+  --shadow-float: 0 10px 30px rgba(0,0,0,0.25);
+
+  --touch-min: 44px;
+  --button-height: 52px;
+  --phone-width: 390px;
+  --sidebar-width: 232px;
+  --belt-height: 22px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tatame: #0E141B;
+    --surface: #18212C;
+    --surface-sunken: #121A23;
+    --line: #263241;
+    --line-strong: #344457;
+    --ink: #F1EEE8;
+    --ink-muted: #B4BDC8;
+    --ink-subtle: #9AA4B1;
+    --brand: #3A5F88;
+    --brand-ink: #9DB8D6;
+    --night: #152131;
+    --ponteira: #E0484D;
+    --fundador-ink: #F5C84B;
+    --fundador-soft: #3A2E10;
+    --success: #5CC48A;
+    --success-soft: #15301F;
+    --warning: #F2C14E;
+    --warning-soft: #3A2E10;
+    --danger: #F07067;
+    --danger-soft: #3A1714;
+    --info-soft: #1C2836;
+    --switch-off: #3B4655;
+    --belt-branca-borda: #5A6676;
+    --shadow-card: 0 4px 16px rgba(0,0,0,0.35);
+    --shadow-control: 0 2px 8px rgba(0,0,0,0.4);
+    --shadow-float: 0 10px 30px rgba(0,0,0,0.55);
+    color-scheme: dark;
+  }
+}
