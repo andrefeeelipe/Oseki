@@ -1,4 +1,4 @@
-name: Apps (Android e Windows)
+name: Apps (Android, iPhone e Windows)
 
 on:
   push:
@@ -55,6 +55,42 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: apk, path: OsekiBJJ.apk }
 
+  ios:
+    name: App do iPhone (IPA)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+        env: { ELECTRON_SKIP_BINARY_DOWNLOAD: '1' }
+      - run: npm run build
+        env: { BASE: ./ }
+      - name: Projeto iOS (Capacitor)
+        run: |
+          npx cap add ios
+          npx cap sync ios
+      - name: Permissões (localização e câmera)
+        run: |
+          P=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Usamos sua localização para marcar presença quando você chega na academia.'" $P
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Usamos a câmera para ler o QR Code da aula e tirar sua foto de perfil.'" $P
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Escolha uma foto para o seu perfil.'" $P
+      - name: Ícone
+        run: |
+          brew install librsvg >/dev/null
+          D=ios/App/App/Assets.xcassets/AppIcon.appiconset
+          rsvg-convert -w 1024 -h 1024 -b '#121A24' public/icon.svg -o "$D/AppIcon-512@2x.png"
+      - name: Compilar (sem assinatura)
+        run: |
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -sdk iphoneos \
+            -archivePath build/App.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" archive
+          mkdir -p Payload
+          cp -R build/App.xcarchive/Products/Applications/App.app Payload/
+          zip -qr OsekiBJJ-iPhone.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with: { name: ios, path: OsekiBJJ-iPhone.ipa }
+
   windows:
     name: Painel (instalador Windows)
     runs-on: windows-latest
@@ -70,7 +106,7 @@ jobs:
 
   release:
     name: Publicar na página de downloads
-    needs: [android, windows]
+    needs: [android, ios, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -87,11 +123,13 @@ jobs:
           make_latest: true
           files: |
             out/OsekiBJJ.apk
+            out/OsekiBJJ-iPhone.ipa
             out/OsekiBJJ-Painel-Setup.exe
           body: |
             **App do celular (alunos e professores)**
             - Android: baixe **OsekiBJJ.apk** e instale (permita "instalar apps desconhecidos").
-            - iPhone: abra https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/ no Safari → Compartilhar → "Adicionar à Tela de Início".
+            - iPhone (jeito mais fácil): abra https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/ no Safari → Compartilhar → "Adicionar à Tela de Início". Funciona como app, com ícone.
+            - iPhone (arquivo): **OsekiBJJ-iPhone.ipa**. A Apple só deixa instalar .ipa fora da App Store com AltStore ou Sideloadly (usando seu Apple ID; renovar a cada 7 dias). Para publicar na App Store é preciso conta de desenvolvedor Apple (US$ 99/ano).
 
             **Painel da academia (computador)**
             - Windows: baixe **OsekiBJJ-Painel-Setup.exe** e instale. Se o Windows avisar "app não reconhecido", clique em "Mais informações" → "Executar assim mesmo".

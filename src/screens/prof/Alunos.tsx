@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useDB, setFaixa, setApto, addNote, toast, update, registrarPagamento, estornarPagamento } from '../../data/store';
 import { PLANOS, planoNome } from '../../data/seed';
-import type { PlanoId } from '../../data/types';
-import { ALL_BELTS, ADULTO, INFANTIL, aulaById, freq, grausTxt, grupoDe, idadeDe, metaDe, pct, valorDe, brl, mesAtual } from '../../data/util';
+import type { PlanoId, Student } from '../../data/types';
+import { ALL_BELTS, ADULTO, INFANTIL, aulaById, freq, grausTxt, grupoDe, idadeDe, metaDe, pct, valorDe, brl, mesAtual, diasSemTreino, ultimoTreino } from '../../data/util';
 import { Sheet, Field } from '../../ui/kit';
 import { Avatar, Belt, Chip, Setting, StatCard, SubHeader, LinkCard } from '../../ui/kit';
 import { Icon } from '../../ui/Icon';
@@ -14,22 +14,23 @@ export function Alunos() {
   const db = useDB();
   const [q, setQ] = useState('');
   const [g, setG] = useState('Todos');
-  const lista = db.students.filter((s) => s.nome.toLowerCase().includes(q.toLowerCase()) && (g === 'Inativos' ? s.status === 'inativo' : s.status !== 'inativo' && (g === 'Todos' || grupoDe(s) === g))).sort((a, b) => a.nome.localeCompare(b.nome));
+  const ausente = (s: Student) => { const d = diasSemTreino(db, s); return d == null || d > 30; };
+  const lista = db.students.filter((s) => (s.nome + ' ' + (s.apelido ?? '')).toLowerCase().includes(q.toLowerCase()) && (g === 'Inativos' ? s.status === 'inativo' : s.status !== 'inativo' && (g === 'Todos' || (g === 'Ausentes' ? ausente(s) : g === 'Sem app' ? !!s.convidado : grupoDe(s) === g)))).sort((a, b) => a.nome.localeCompare(b.nome));
   return (
     <div className="scroll">
       <ProfHeader title="Alunos" />
       <div className="pad" style={{ paddingTop: 18 }}>
         <label className="sr-only" htmlFor="busca">Buscar aluno</label>
         <input id="busca" type="search" className="os-input" style={{ background: 'var(--surface)' }} placeholder="Buscar aluno" value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="scroll-x">{['Todos', 'Kids', 'Teens', 'Adulto', 'Inativos'].map((x) => <button key={x} className="os-pill" aria-pressed={g === x} onClick={() => setG(x)}>{x}</button>)}
+        <div className="scroll-x">{['Todos', 'Ausentes', 'Sem app', 'Kids', 'Teens', 'Adulto', 'Inativos'].map((x) => <button key={x} className="os-pill" aria-pressed={g === x} onClick={() => setG(x)}>{x}</button>)}
           <button className="os-pill" onClick={() => go('prof/x/convidar')}><Icon n="plus" size={16} />&nbsp;Convidar</button></div>
         <div className="os-list" style={{ padding: '4px 14px' }}>
           {lista.map((s) => (
             <button key={s.id} className="os-listrow" onClick={() => go(`prof/aluno/${s.id}`)} style={{ width: '100%', border: 0, borderBottom: '1px solid var(--line)', background: 'none', textAlign: 'left', cursor: 'pointer', color: 'var(--ink)' }}>
               <Avatar s={s} />
               <span className="os-listrow__body" style={{ gap: 6 }}>
-                <span className="os-listrow__title">{s.nome}{s.convidado ? ' · convidado' : ''}</span>
-                <span className="row" style={{ gap: 8 }}><span style={{ width: 44 }}><Belt belt={s.belt} graus={s.graus} size="sm" /></span><span className="t-sub">{s.belt} · {grausTxt(s.graus)}</span></span>
+                <span className="os-listrow__title">{s.nome}{s.apelido ? <span className="muted"> · {s.apelido}</span> : null}</span>
+                <span className="row" style={{ gap: 8 }}><span style={{ width: 44 }}><Belt belt={s.belt} graus={s.graus} size="sm" /></span><span className="t-sub">{s.belt} · {grausTxt(s.graus)}</span>{s.convidado && <Chip tone="info">sem app</Chip>}{ausente(s) && s.status !== 'inativo' && <Chip tone="warning">{diasSemTreino(db, s) == null ? 'sem treino' : `${diasSemTreino(db, s)}d sem treinar`}</Chip>}</span>
               </span>
               <span className="col" style={{ alignItems: 'flex-end' }}><span className="num" style={{ fontSize: 15, fontWeight: 700 }}>{freq(db, s)}%</span><span className="t-sub" style={{ fontSize: 11 }}>freq.</span></span>
             </button>
@@ -106,6 +107,12 @@ export function AlunoDetalhe({ sid }: { sid: string }) {
 
         <div className="os-card" style={{ padding: 18 }}>
           <div className="row-between"><span className="t-title">Dados do aluno</span><button className="link" onClick={() => setEdit(true)}>Editar</button></div>
+          {s.apelido && <div className="kv" style={{ padding: '8px 0' }}><span>Apelido</span><span>{s.apelido}</span></div>}
+          <div className="kv" style={{ padding: '8px 0' }}><span>Último treino</span><span>{ultimoTreino(db, s)?.split('-').reverse().join('/') ?? '—'}</span></div>
+          {s.totalAnterior != null && <div className="kv" style={{ padding: '8px 0' }}><span>Aulas antes do app</span><span>{s.totalAnterior}</span></div>}
+          {s.exame?.data && <div className="kv" style={{ padding: '8px 0' }}><span>Exame</span><span>{s.exame.alvo} · {s.exame.data.split('-').reverse().join('/')}{s.exame.media != null ? ` · média ${s.exame.media}` : ''}</span></div>}
+          {s.alertaPlanilha && <div className="kv" style={{ padding: '8px 0' }}><span>Obs. planilha</span><span>{s.alertaPlanilha}</span></div>}
+          {s.convidado && <div className="kv" style={{ padding: '8px 0' }}><span>App</span><span>Ainda não criou acesso</span></div>}
           <div className="kv" style={{ padding: '8px 0' }}><span>Nascimento</span><span>{s.nasc || '—'}</span></div>
           <div className="kv" style={{ padding: '8px 0' }}><span>Telefone</span><span>{s.tel || '—'}</span></div>
           <div className="kv" style={{ padding: '8px 0' }}><span>Responsável</span><span>{s.resp || '—'}</span></div>
@@ -136,11 +143,12 @@ export function AlunoDetalhe({ sid }: { sid: string }) {
 export function EditAluno({ sid, onClose }: { sid: string; onClose: () => void }) {
   const db = useDB();
   const s = db.students.find((x) => x.id === sid)!;
-  const [f, setF] = useState({ nome: s.nome, nasc: s.nasc, tel: s.tel, resp: s.resp, email: s.email, turma: s.turma, plano: s.plano as PlanoId });
+  const [f, setF] = useState({ nome: s.nome, apelido: s.apelido ?? '', nasc: s.nasc, tel: s.tel, resp: s.resp, email: s.email, turma: s.turma, plano: s.plano as PlanoId });
   return (
     <Sheet title="Editar aluno" onClose={onClose}>
       <div className="col-2" style={{ maxHeight: '60dvh', overflowY: 'auto', paddingBottom: 4 }}>
         <Field label="Nome"><input className="os-input" value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></Field>
+        <Field label="Apelido"><input className="os-input" value={f.apelido} onChange={(e) => setF({ ...f, apelido: e.target.value })} /></Field>
         <Field label="Nascimento"><input className="os-input" placeholder="dd/mm/aaaa" value={f.nasc} onChange={(e) => setF({ ...f, nasc: e.target.value })} /></Field>
         <Field label="Telefone"><input className="os-input" inputMode="tel" value={f.tel} onChange={(e) => setF({ ...f, tel: e.target.value })} /></Field>
         <Field label="Responsável"><input className="os-input" value={f.resp} onChange={(e) => setF({ ...f, resp: e.target.value })} /></Field>

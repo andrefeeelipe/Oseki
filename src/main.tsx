@@ -11,5 +11,13 @@ import './styles/tokens.css';
 import './styles/bundle.css';
 import './styles/app.css';
 import App from './App';
+import { Capacitor } from '@capacitor/core';
+import { App as AppNativo } from '@capacitor/app';
+import { voltarUmaTela } from './ui/router';
+
+// Android: o botão voltar volta uma tela (ou fecha a janela aberta) em vez de fechar o app.
+if (Capacitor.isNativePlatform()) {
+  AppNativo.addListener('backButton', () => { if (!voltarUmaTela()) AppNativo.minimizeApp(); });
+}
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

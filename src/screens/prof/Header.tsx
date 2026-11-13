@@ -1,4 +1,4 @@
-import { useDB, sair, meuNome } from '../../data/store';
+import { useDB, meuNome } from '../../data/store';
 import { go } from '../../ui/router';
 import { Icon } from '../../ui/Icon';
 
@@ -15,7 +15,6 @@ export function ProfHeader({ title }: { title: string }) {
         </div>
         <div className="row" style={{ gap: 8 }}>
           <button className="icon-btn" aria-label={`Notificações${unread ? `, ${unread} novas` : ''}`} onClick={() => go('prof/x/notif')}><Icon n="bell" size={20} />{unread > 0 && <span className="badge">{unread}</span>}</button>
-          <button className="icon-btn" aria-label="Sair" onClick={() => { sair(); }}><Icon n="logout" size={20} /></button>
         </div>
       </div>
       <div style={{ height: 10, borderRadius: 3, background: '#111', position: 'relative', overflow: 'hidden', boxShadow: '0 0 0 1px rgba(255,255,255,0.15)' }}><div style={{ position: 'absolute', right: '10%', top: 0, bottom: 0, width: '28%', background: 'var(--ponteira)' }} /></div>

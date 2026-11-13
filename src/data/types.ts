@@ -46,6 +46,11 @@ export interface Student {
   geoAuto: boolean;
   notif: boolean;
   convidado?: boolean;
+  apelido?: string;
+  totalAnterior?: number; // aulas registradas na planilha antiga
+  ultimoTreino?: string; // AAAA-MM-DD (planilha antiga)
+  alertaPlanilha?: string;
+  exame?: { alvo: string; data: string; tipo?: string; tecs?: number[]; notas?: number[]; media?: number; aprovado?: boolean };
 }
 
 export type AttStatus = 'ok' | 'pend' | 'rej';

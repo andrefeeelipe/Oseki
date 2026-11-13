@@ -173,3 +173,16 @@ export function situacao(db: DB, s: Student): { pay: Student['pay']; dias?: numb
   if (dia > venc) return { pay: 'atraso', dias: dia - venc };
   return { pay: 'aberto' };
 }
+
+/** Último treino conhecido: presença aprovada no app ou data da planilha antiga. */
+export function ultimoTreino(db: DB, s: Student): string | null {
+  let u = s.ultimoTreino ?? null;
+  for (const a of db.att) if (a.sid === s.id && a.status === 'ok' && (!u || a.date > u)) u = a.date;
+  return u;
+}
+/** Dias sem treinar (null = nunca treinou). */
+export function diasSemTreino(db: DB, s: Student): number | null {
+  const u = ultimoTreino(db, s);
+  return u ? Math.round((today().getTime() - fromIso(u).getTime()) / 864e5) : null;
+}
+export const nomeCurto = (s: { nome: string; apelido?: string }) => s.apelido?.trim() || s.nome.split(' ')[0];

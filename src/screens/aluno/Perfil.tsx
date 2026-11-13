@@ -1,29 +1,43 @@
 import { useEffect, useRef, useState } from 'react';
-import { update, sair, toast, trocarSenha } from '../../data/store';
-import { Avatar, LinkCard, Overline, Setting, Sheet, Field } from '../../ui/kit';
+import { update, sair, toast, trocarEmail } from '../../data/store';
+import { TrocarSenha } from '../../ui/TrocarSenha';
+import { Belt } from '../../ui/kit';
+import { grausTxt } from '../../data/util';
+import { Avatar, LinkCard, Overline, Setting, Sheet } from '../../ui/kit';
 import { Icon } from '../../ui/Icon';
 import { go } from '../../ui/router';
 import { fileToAvatar } from '../../ui/photo';
 import { planoNome } from '../../data/seed';
 import { useMe } from './common';
 
-type Form = { nome: string; nasc: string; tel: string; resp: string; turma: string };
+type Form = { nome: string; apelido: string; email: string; nasc: string; tel: string; resp: string; turma: string };
 
 export default function Perfil() {
   const { db, me } = useMe();
   const [sheet, setSheet] = useState(false);
-  const [senha, setSenha] = useState<string | null>(null);
+  const [senha, setSenha] = useState(false);
+  const [busy, setBusy] = useState(false);
   const cam = useRef<HTMLInputElement>(null);
   const gal = useRef<HTMLInputElement>(null);
-  const base: Form = { nome: me.nome, nasc: me.nasc, tel: me.tel, resp: me.resp, turma: me.turma };
+  const emailAtual = db.session?.email || me.email || '';
+  const base: Form = { nome: me.nome, apelido: me.apelido ?? '', email: emailAtual, nasc: me.nasc, tel: me.tel, resp: me.resp, turma: me.turma };
   const [f, setF] = useState<Form>(base);
-  useEffect(() => setF({ nome: me.nome, nasc: me.nasc, tel: me.tel, resp: me.resp, turma: me.turma }), [me.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => setF(base), [me.id, emailAtual]); // eslint-disable-line react-hooks/exhaustive-deps
   const mudou = JSON.stringify(f) !== JSON.stringify(base);
 
-  const salvar = () => {
+  const salvar = async () => {
     if (!f.nome.trim()) { toast('O nome não pode ficar vazio.'); return; }
-    update((d) => { Object.assign(d.students.find((x) => x.id === me.id)!, { ...f, nome: f.nome.trim() }); });
-    toast('Perfil salvo.');
+    const mail = f.email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { toast('E-mail inválido.'); return; }
+    let aviso = 'Perfil salvo.';
+    if (mail !== emailAtual.toLowerCase()) {
+      setBusy(true); const r = await trocarEmail(mail); setBusy(false);
+      if (r && r !== 'confirmar') { toast(r); return; }
+      if (r === 'confirmar') aviso = 'Perfil salvo. Confirme o novo e-mail pelo link que enviamos.';
+    }
+    // Faixa, graus e aulas não entram aqui: só o professor altera.
+    update((d) => { Object.assign(d.students.find((x) => x.id === me.id)!, { nome: f.nome.trim(), apelido: f.apelido.trim(), email: mail, nasc: f.nasc.trim(), tel: f.tel.trim(), resp: f.resp.trim(), turma: f.turma }); });
+    toast(aviso);
   };
 
   const onFile = async (file?: File) => {
@@ -58,6 +72,10 @@ export default function Perfil() {
         <div className="os-card os-card--flat" style={{ padding: '6px 16px 16px', gap: 0 }}>
           <label htmlFor="f-nome" className="os-overline" style={lbl}>Nome</label>
           <input id="f-nome" style={campo} value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} />
+          <label htmlFor="f-apelido" className="os-overline" style={lbl}>Apelido (opcional)</label>
+          <input id="f-apelido" style={campo} placeholder="Como te chamam no tatame" value={f.apelido} onChange={(e) => setF({ ...f, apelido: e.target.value })} />
+          <label htmlFor="f-email" className="os-overline" style={lbl}>E-mail (login)</label>
+          <input id="f-email" style={campo} type="email" autoComplete="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
           <label htmlFor="f-nasc" className="os-overline" style={lbl}>Nascimento</label>
           <input id="f-nasc" style={campo} inputMode="numeric" placeholder="dd/mm/aaaa" value={f.nasc} onChange={(e) => setF({ ...f, nasc: e.target.value })} />
           <label htmlFor="f-tel" className="os-overline" style={lbl}>Telefone</label>
@@ -69,7 +87,13 @@ export default function Perfil() {
             <option value="">Escolha sua turma</option>
             {db.aulas.filter((a) => a.grupo !== 'Todos').map((a) => <option key={a.id} value={a.id}>{a.nome} · {a.ini}</option>)}
           </select>
-          <button className="os-btn os-btn--primary os-btn--block" style={{ marginTop: 16 }} disabled={!mudou} onClick={salvar}>{mudou ? 'Salvar alterações' : 'Dados salvos'}</button>
+          <span className="os-overline" style={lbl}>Faixa</span>
+          <div className="row" style={{ gap: 10, padding: '10px 0', alignItems: 'center' }}>
+            <Belt belt={me.belt} graus={me.graus} size="sm" style={{ width: 56 }} />
+            <span style={{ fontWeight: 600 }}>{me.belt} · {grausTxt(me.graus)}</span>
+          </div>
+          <span className="t-small muted">Faixa e graus só o professor altera.</span>
+          <button className="os-btn os-btn--primary os-btn--block" style={{ marginTop: 16 }} disabled={!mudou || busy} onClick={salvar}>{busy ? 'Salvando…' : mudou ? 'Salvar alterações' : 'Dados salvos'}</button>
         </div>
         <div className="os-list">
           <Setting title="Presença automática" sub="Usa a localização ao chegar na academia" on={me.geoAuto} onChange={togGeo} />
@@ -81,7 +105,7 @@ export default function Perfil() {
         <LinkCard icon="money" title="Mensalidade" sub={me.pay === 'pago' ? 'Em dia' : me.pay === 'analise' ? 'Pagamento em análise' : me.pay === 'atraso' ? 'Em atraso' : 'Em aberto'} onClick={() => go('aluno/x/mensalidade')} />
         <LinkCard icon="card" title="Carteirinha" onClick={() => go('aluno/x/carteirinha')} />
         <LinkCard icon="scale" title="Regras e pontuação" onClick={() => go('aluno/x/regras')} />
-        <LinkCard icon="lock" title="Trocar senha" sub={db.session?.email} onClick={() => setSenha('')} />
+        <LinkCard icon="lock" title="Trocar senha" sub={db.session?.email} onClick={() => setSenha(true)} />
 
         <div className="os-card os-card--flat kv" style={{ padding: '14px 16px', flexDirection: 'row' }}><span>Equipe</span><span>{db.settings.equipe}</span></div>
         <button className="os-btn os-btn--danger" onClick={() => sair()}>Sair</button>
@@ -96,12 +120,7 @@ export default function Perfil() {
           {me.foto && <button className="sheet-opt" style={{ color: 'var(--danger)', borderBottom: 0 }} onClick={() => { update((d) => { delete d.students.find((x) => x.id === me.id)!.foto; }); setSheet(false); toast('Foto removida.'); }}>Remover foto</button>}
         </Sheet>
       )}
-      {senha !== null && (
-        <Sheet title="Trocar senha" onClose={() => setSenha(null)}>
-          <Field label="Nova senha"><input className="os-input" type="password" autoComplete="new-password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="mínimo 6 caracteres" /></Field>
-          <button className="os-btn os-btn--primary os-btn--block" onClick={async () => { if (senha.length < 6) { toast('Mínimo 6 caracteres.'); return; } const r = await trocarSenha(senha); toast(r ?? 'Senha alterada.'); if (!r) setSenha(null); }}>Salvar senha</button>
-        </Sheet>
-      )}
+      {senha && <TrocarSenha onClose={() => setSenha(false)} />}
     </div>
   );
 }

@@ -274,6 +274,21 @@ export async function trocarSenha(nova: string) {
   await reload();
   return null;
 }
+export type Ficha = { id: string; nome: string; apelido: string; belt: string; graus: number };
+export async function fichasLivres(codigo: string): Promise<Ficha[] | string> {
+  if (!sb) return 'Servidor não configurado.';
+  const r = await sb.rpc('fichas_livres', { p_codigo: codigo.trim() });
+  if (r.error) return r.error.message;
+  const l = (r.data as Ficha[]) ?? [];
+  return l.length ? l : 'Código inválido ou nenhuma ficha disponível. Confira com o professor.';
+}
+export async function trocarEmail(novo: string) {
+  if (!sb) return 'Servidor não configurado.';
+  const mail = novo.trim().toLowerCase();
+  const r = await sb.auth.updateUser({ email: mail });
+  if (r.error) return r.error.message.includes('already') ? 'Este e-mail já está em uso.' : r.error.message;
+  return r.data.user?.email === mail ? null : 'confirmar';
+}
 export async function sair() { if (sb) await sb.auth.signOut(); db = emptyDB(); saveCache(); setAuth('deslogado'); }
 export const logout = () => { sair(); };
 

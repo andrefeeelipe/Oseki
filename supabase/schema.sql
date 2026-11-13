@@ -55,7 +55,7 @@ $$;
 create or replace function public.protege_perfil() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
-  livres text[] := array['nome','nasc','tel','resp','foto','geoAuto','notif','plano','fundador','contrato','payInformado','email','turma'];
+  livres text[] := array['nome','nasc','tel','resp','foto','geoAuto','notif','plano','fundador','contrato','payInformado','email','turma','apelido'];
   k text;
   novo jsonb;
 begin
@@ -108,6 +108,22 @@ end $$;
 drop trigger if exists conta_aulas on public.att;
 create trigger conta_aulas after insert or update or delete on public.att for each row execute function public.conta_aulas();
 
+-- Compara nomes sem acento e sem diferença de maiúsculas
+create or replace function public.norm(t text) returns text
+language sql immutable as $$
+  select regexp_replace(lower(translate(coalesce(t, ''), 'ÁÀÂÃÄáàâãäÉÈÊËéèêëÍÌÎÏíìîïÓÒÔÕÖóòôõöÚÙÛÜúùûüÇçÑñ', 'AAAAAaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuCcNn')), '\s+', ' ', 'g');
+$$;
+
+-- "Já é aluno? Faça seu acesso": lista as fichas sem conta, só para quem tem o código da academia
+create or replace function public.fichas_livres(p_codigo text) returns table (id uuid, nome text, apelido text, belt text, graus int)
+language sql stable security definer set search_path = public as $$
+  select p.id, p.data->>'nome', coalesce(p.data->>'apelido', ''), p.data->>'belt', coalesce((p.data->>'graus')::int, 0)
+  from public.profiles p, public.segredos s
+  where s.id = 1 and upper(trim(p_codigo)) = upper(s.codigo_aluno)
+    and p.role = 'aluno' and (p.data->>'convidado')::boolean is true and coalesce(p.data->>'status', 'ativo') <> 'inativo'
+  order by p.data->>'nome';
+$$;
+
 -- Cadastro: cria o perfil depois do sign-up, validando o código da academia
 create or replace function public.criar_perfil(p_codigo text, p_role text, p_data jsonb)
 returns text language plpgsql security definer set search_path = public as $$
@@ -126,13 +142,23 @@ begin
   if p_role = 'aluno' then
     if upper(trim(p_codigo)) <> upper(seg.codigo_aluno) then raise exception 'Código da academia inválido.'; end if;
     papel := 'aluno';
-    -- Aluno convidado pelo professor: assume a ficha que já existe
-    select id into convidado from public.profiles
-      where role = 'aluno' and (data->>'convidado')::boolean is true and lower(data->>'email') = mail and mail <> ''
-      limit 1;
+    -- Aluno que já treina: assume a ficha que já existe (escolhida na lista, pelo e-mail ou pelo nome)
+    if coalesce(p_data->>'vinculo', '') <> '' then
+      select id into convidado from public.profiles
+        where id::text = p_data->>'vinculo' and role = 'aluno' and (data->>'convidado')::boolean is true;
+    end if;
+    if convidado is null and mail <> '' then
+      select id into convidado from public.profiles
+        where role = 'aluno' and (data->>'convidado')::boolean is true and lower(data->>'email') = mail limit 1;
+    end if;
+    if convidado is null then
+      select id into convidado from public.profiles
+        where role = 'aluno' and (data->>'convidado')::boolean is true and public.norm(data->>'nome') = public.norm(p_data->>'nome')
+        limit 1;
+    end if;
     if convidado is not null then
       perform set_config('oseki.sistema', '1', true);
-      update public.profiles set id = uid, data = (data || p_data || jsonb_build_object('convidado', false)) where id = convidado;
+      update public.profiles set id = uid, data = (data || (p_data - 'vinculo' - 'nome' - 'belt' - 'graus' - 'aulas' - 'hist' - 'notes' - 'turma' - 'plano' - 'pagamentos' - 'contrato' - 'tecnicas' - 'mesesEmDia' - 'apto' - 'status') || jsonb_build_object('convidado', false)) where id = convidado;
       update public.att set sid = uid where sid = convidado;
       update public.notifs set dest = uid::text where dest = convidado::text;
       perform set_config('oseki.sistema', '0', true);
@@ -170,7 +196,7 @@ $$;
 create or replace function public.diretorio() returns table (id uuid, role text, data jsonb)
 language sql stable security definer set search_path = public as $$
   select p.id, p.role,
-    jsonb_build_object('nome', p.data->'nome', 'belt', p.data->'belt', 'graus', p.data->'graus', 'foto', p.data->'foto',
+    jsonb_build_object('nome', p.data->'nome', 'apelido', p.data->'apelido', 'belt', p.data->'belt', 'graus', p.data->'graus', 'foto', p.data->'foto',
       'turma', p.data->'turma', 'nasc', p.data->'nasc', 'fundador', p.data->'fundador', 'plano', p.data->'plano', 'status', p.data->'status')
   from public.profiles p
   where auth.uid() is not null;
@@ -244,6 +270,7 @@ grant execute on function public.criar_perfil(text, text, jsonb) to authenticate
 grant execute on function public.diretorio() to authenticated;
 grant execute on function public.presencas_ranking(date) to authenticated;
 grant execute on function public.codigo_inicial() to anon, authenticated;
+grant execute on function public.fichas_livres(text) to anon, authenticated;
 grant execute on function public.primeiro_acesso() to anon, authenticated;
 
 -- ---------- Tempo real ----------
@@ -291,21 +318,8 @@ insert into public.settings (id, data) values (1, '{
 }'::jsonb) on conflict (id) do nothing;
 
 insert into public.aulas (id, data) values
-  ('c1', '{"id":"c1","nome":"Teens 11–15","ini":"18:00","fim":"19:00","dias":[1,3,4],"publico":"Teens 11–15","prof":"","vagas":20,"grupo":"Teens"}'),
-  ('c2', '{"id":"c2","nome":"Gi · todos os níveis","ini":"19:30","fim":"21:00","dias":[1,2,4],"publico":"Adulto","prof":"","vagas":30,"grupo":"Adulto"}'),
-  ('c3', '{"id":"c3","nome":"Fundamentos","ini":"07:00","fim":"08:00","dias":[2,5],"publico":"Adulto","prof":"","vagas":20,"grupo":"Adulto"}'),
-  ('c4', '{"id":"c4","nome":"Kids 4–10","ini":"17:00","fim":"17:50","dias":[2,4],"publico":"Kids 4–10","prof":"","vagas":16,"grupo":"Kids"}'),
-  ('c5', '{"id":"c5","nome":"No-Gi","ini":"19:30","fim":"20:30","dias":[3,5],"publico":"Adulto","prof":"","vagas":24,"grupo":"Adulto"}'),
-  ('c6', '{"id":"c6","nome":"Open mat","ini":"10:00","fim":"12:00","dias":[6],"publico":"Todos","prof":"","vagas":40,"grupo":"Todos"}')
-on conflict (id) do nothing;
-
-insert into public.tecnicas (id, data) values
-  ('t1', '{"id":"t1","titulo":"Fuga de montada (upa)","cat":"Defesa","faixaMin":"Branca","dur":"","desc":"Ponte com o quadril alto e prenda o braço do mesmo lado."}'),
-  ('t2', '{"id":"t2","titulo":"Passagem de guarda básica","cat":"Passagem","faixaMin":"Branca","dur":"","desc":"Postura, abertura da guarda fechada e passagem por baixo da perna."}'),
-  ('t3', '{"id":"t3","titulo":"Raspagem tesoura","cat":"Raspagem","faixaMin":"Branca","dur":"","desc":"Da guarda fechada aberta, pegada na gola e na manga."}'),
-  ('t4', '{"id":"t4","titulo":"Armlock da montada","cat":"Finalização","faixaMin":"Branca","dur":"","desc":"Isolar o braço, girar o quadril e fechar os joelhos."}'),
-  ('t5', '{"id":"t5","titulo":"Queda: o-soto-gari","cat":"Quedas","faixaMin":"Branca","dur":"","desc":"Desequilíbrio para trás e ceifada da perna de apoio."}'),
-  ('t6', '{"id":"t6","titulo":"Defesa de estrangulamento","cat":"Defesa","faixaMin":"Branca","dur":"","desc":"Proteja o pescoço com as mãos e gire para o lado da pegada."}')
+  ('adulto', '{"id":"adulto","nome":"Jiu-Jitsu Adulto","ini":"19:30","fim":"21:00","dias":[1,3],"publico":"Adulto","prof":"","vagas":40,"grupo":"Adulto"}'),
+  ('lab', '{"id":"lab","nome":"Laboratório Oseki BJJ","ini":"19:30","fim":"20:30","dias":[5],"publico":"Adulto","prof":"","vagas":40,"grupo":"Adulto"}')
 on conflict (id) do nothing;
 
 -- Mostra o código de professor gerado (use para criar a primeira conta de professor)

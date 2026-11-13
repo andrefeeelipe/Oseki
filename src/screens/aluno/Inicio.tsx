@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { marcarPresenca, toast, update } from '../../data/store';
 import { curta, distTxt, freqMes, grausTxt, iso, metaDe, naJanela, pct, primeiro, aulasDoAluno, today } from '../../data/util';
+import { treinoDoDia } from '../../data/cronograma';
 import { Avatar, Belt, Chip, LinkCard, Overline, StatCard, attChip } from '../../ui/kit';
 import { Icon } from '../../ui/Icon';
 import { go } from '../../ui/router';
@@ -111,6 +112,7 @@ export default function Inicio() {
               <div className="col" style={{ gap: 4 }}>
                 <span style={{ font: '700 24px/1 var(--font-display)', textTransform: 'uppercase' }}>{prox.aula.nome}</span>
                 <span className="t-small muted">{ehHoje ? '' : curta(prox.date) + ' · '}{prox.aula.ini} – {prox.aula.fim} · {prox.aula.prof}</span>
+                {treinoDoDia(prox.date) && <span className="t-small" style={{ fontWeight: 600 }}>Tema: {treinoDoDia(prox.date)!.tema}</span>}
               </div>
               <Chip tone={chip.tone}>{chip.t}</Chip>
             </div>

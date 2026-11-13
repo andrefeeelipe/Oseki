@@ -1,3 +1,4 @@
+import { TrocarSenha } from '../../ui/TrocarSenha';
 import { useRef, useState } from 'react';
 import { useDB, update, toast, notify, novoAluno, registrarPagamento, sair, trocarSenha } from '../../data/store';
 import { fileToAvatar } from '../../ui/photo';
@@ -8,6 +9,11 @@ import { Sub, Avatar, Bars, Chip, Overline, Setting, Field, Stepper, Calendar, L
 import { Icon } from '../../ui/Icon';
 import { go } from '../../ui/router';
 import { entradasHoje } from './access';
+import { passoExame } from '../shared/exame';
+import { treinosDaSemana } from '../../data/cronograma';
+import { WD_LONG } from '../../data/util';
+import { chaveTec, sortear } from '../../data/curriculo';
+import { graduar } from '../../data/store';
 
 /* N6 · Plano de aula */
 export function PlanoAula() {
@@ -15,6 +21,7 @@ export function PlanoAula() {
   const p = db.settings.planoAula;
   const [tec, setTec] = useState(p.tecnica);
   const done = p.passos.filter((x) => x.done).length;
+  const semana = treinosDaSemana(today());
   const tog = (i: number) => update((d) => { d.settings.planoAula.passos[i].done = !d.settings.planoAula.passos[i].done; });
   const salvarTec = () => update((d) => {
     d.settings.planoAula.tecnica = tec;
@@ -30,6 +37,19 @@ export function PlanoAula() {
           style={{ font: '700 26px/1.05 var(--font-display)', textTransform: 'uppercase', background: 'transparent', border: 0, borderBottom: '1px dashed rgba(255,255,255,0.3)', color: '#fff', outline: 'none', padding: '4px 0' }} />
         <span className="t-small os-muted">Vai aparecer como "posição da semana" no app dos alunos.</span>
       </div>
+      {semana.length > 0 && (
+        <>
+          <Overline>Cronograma da semana</Overline>
+          {semana.map((x) => (
+            <div key={x.dia} className="os-card" style={{ gap: 6 }}>
+              <div className="row-between"><span className="t-strong">{WD_LONG[x.dia]} · {x.tema}</span><span className="t-sub">{x.dur}</span></div>
+              {x.posicoes && <span className="t-sub">{x.posicoes}</span>}
+              {x.obs && <span className="t-small muted">{x.obs}</span>}
+              <button className="os-btn os-btn--quiet os-btn--sm" style={{ alignSelf: 'flex-start' }} onClick={() => { setTec(x.tema); update((d) => { d.settings.planoAula.tecnica = x.tema; }); toast('Tema definido como técnica do dia.'); }}>Usar como técnica do dia</button>
+            </div>
+          ))}
+        </>
+      )}
       <div className="os-list">
         {p.passos.map((x, i) => (
           <button key={i} className="os-listrow" onClick={() => tog(i)} style={{ width: '100%', border: 0, borderBottom: '1px solid var(--line)', background: 'none', textAlign: 'left', cursor: 'pointer', color: 'var(--ink)' }}>
@@ -127,24 +147,72 @@ export function Historico({ sid }: { sid?: string }) {
   );
 }
 
-/* N9 · Avaliação técnica */
+/* N9 · Avaliação técnica (currículo + sorteio do exame) */
 const NIV = ['Não vista', 'Em treino', 'Aprovada'];
 export function Avaliacao({ sid }: { sid?: string }) {
   const db = useDB();
   const s = db.students.find((x) => x.id === sid) ?? db.students[0];
   const [t, setT] = useState<Record<string, TecnicaNivel>>({ ...s.tecnicas });
-  const base = db.tecnicas.filter((x) => x.faixaMin === 'Branca');
-  const ok = base.filter((x) => (t[x.id] ?? 0) === 2).length;
+  const [prova, setProva] = useState<number[] | null>(null);
+  const [notas, setNotas] = useState<Record<number, string>>({});
+  const p = passoExame(s);
+  if (!p) return <Sub title="Avaliação" sub={s.nome} fallback={`prof/aluno/${s.id}`} admin><span className="t-sub">Faixa preta: sem currículo de exame no app.</span></Sub>;
+  const ok = p.tecs.filter((x) => (t[chaveTec(p.faixa, x.n)] ?? 0) === 2).length;
+  const vals = (prova ?? []).map((n) => parseFloat((notas[n] ?? '').replace(',', '.'))).filter((v) => !isNaN(v));
+  const completa = !!prova && vals.length === prova.length;
+  const media = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  const aprovado = completa && media >= p.media;
+  const nomeTec = (n: number) => p.c.tecnicas[n - 1];
+  const salvarProva = (graduarJa: boolean) => {
+    const novo = { ...t };
+    prova!.forEach((n) => { const v = parseFloat((notas[n] ?? '').replace(',', '.')); novo[chaveTec(p.faixa, n)] = v >= p.media ? 2 : 1; });
+    update((d) => {
+      const a = d.students.find((y) => y.id === s.id)!;
+      a.tecnicas = novo;
+      a.exame = { ...(a.exame ?? {}), alvo: p.alvo, data: a.exame?.data ?? iso(today()), tecs: prova!, notas: prova!.map((n) => parseFloat((notas[n] ?? '0').replace(',', '.'))), media: Math.round(media * 10) / 10, aprovado };
+      if (aprovado) a.apto = true;
+      notify(d, s.id, aprovado ? 'Aprovado na avaliação. Oss!' : 'Resultado da avaliação', `Média ${media.toFixed(1).replace('.', ',')} (mínimo ${String(p.media).replace('.', ',')}).`, aprovado ? 'ok' : 'nota');
+    });
+    if (graduarJa) graduar([s.id]);
+    toast(graduarJa ? `Graduado: ${p.alvo}. Oss!` : 'Avaliação salva e enviada ao aluno.');
+    setT(novo); setProva(null); setNotas({});
+  };
   return (
-    <Sub title="Avaliação" sub={`${s.nome} · ${s.belt.toLowerCase()}`} fallback={`prof/aluno/${s.id}`} admin>
-      <div className="os-card os-card--flat row-between" style={{ flexDirection: 'row' }}><span className="t-strong">{ok} de {base.length} técnicas aprovadas</span><Chip tone={ok === base.length ? 'success' : 'info'}>{Math.round((ok / base.length) * 100)}%</Chip></div>
-      {base.map((x) => (
-        <div key={x.id} className="os-card" style={{ gap: 10 }}>
-          <div className="col"><span className="t-strong" style={{ fontSize: 15 }}>{x.titulo}</span><span className="t-sub">{x.cat}</span></div>
-          <div className="seg">{NIV.map((l, i) => <button key={l} aria-pressed={(t[x.id] ?? 0) === i} onClick={() => setT({ ...t, [x.id]: i as TecnicaNivel })}>{l}</button>)}</div>
+    <Sub title="Avaliação" sub={`${s.nome} · ${s.belt.toLowerCase()} · ${p.alvo}`} fallback={`prof/aluno/${s.id}`} admin>
+      <div className="os-card os-card--flat" style={{ gap: 6 }}>
+        <span className="t-strong">{p.exameFaixa ? 'Exame de troca de faixa' : 'Exame de grau'} · técnicas {p.de} a {p.ate}</span>
+        <span className="t-sub">Sorteio de {p.qtd} técnicas, nota de 0 a 10. Média mínima {String(p.media).replace('.', ',')}.</span>
+        {!prova && <button className="os-btn os-btn--primary os-btn--block" onClick={() => { setProva(sortear(p.de, p.ate, p.qtd)); setNotas({}); }}>Sortear {p.qtd} técnicas</button>}
+      </div>
+      {prova && (
+        <>
+          <Overline>Prova sorteada</Overline>
+          {prova.map((n) => (
+            <div key={n} className="os-card row" style={{ gap: 10, alignItems: 'center' }}>
+              <span style={{ flex: 1, fontWeight: 600 }}>{n}. {nomeTec(n)}</span>
+              <input className="os-input" aria-label={`Nota da técnica ${n}`} inputMode="decimal" placeholder="0–10" style={{ width: 76, textAlign: 'center' }} value={notas[n] ?? ''} onChange={(e) => setNotas({ ...notas, [n]: e.target.value.replace(/[^0-9.,]/g, '').slice(0, 4) })} />
+            </div>
+          ))}
+          <div className="os-card os-card--flat row-between" style={{ flexDirection: 'row' }}>
+            <span className="t-strong">Média {vals.length ? media.toFixed(1).replace('.', ',') : '—'} · {vals.length} de {prova.length} notas</span>
+            {completa && <Chip tone={aprovado ? 'success' : 'warning'}>{aprovado ? 'Aprovado' : 'Abaixo da média'}</Chip>}
+          </div>
+          {p.exameFaixa && p.c.solo.length > 0 && <span className="t-sub" style={{ padding: '0 4px' }}>Também cobrar movimentos de solo: {p.c.solo.join('; ')}.</span>}
+          <div className="grid-2">
+            <button className="os-btn os-btn--secondary" onClick={() => { setProva(null); setNotas({}); }}>Cancelar</button>
+            <button className="os-btn os-btn--primary" disabled={!completa} onClick={() => salvarProva(false)}>Salvar resultado</button>
+          </div>
+          {aprovado && <button className="os-btn os-btn--primary os-btn--block" onClick={() => salvarProva(true)}>Salvar e graduar ({p.alvo})</button>}
+        </>
+      )}
+      <Overline>Currículo · {ok} de {p.tecs.length} aprovadas</Overline>
+      {p.tecs.map((x) => { const k = chaveTec(p.faixa, x.n); return (
+        <div key={k} className="os-card" style={{ gap: 10 }}>
+          <span className="t-strong" style={{ fontSize: 15 }}>{x.n}. {x.nome}</span>
+          <div className="seg">{NIV.map((l, i) => <button key={l} aria-pressed={(t[k] ?? 0) === i} onClick={() => setT({ ...t, [k]: i as TecnicaNivel })}>{l}</button>)}</div>
         </div>
-      ))}
-      <button className="os-btn os-btn--primary os-btn--block" onClick={() => { update((d) => { d.students.find((y) => y.id === s.id)!.tecnicas = t; notify(d, s.id, 'Avaliação técnica atualizada', `${ok} de ${base.length} técnicas aprovadas.`, 'nota'); }); toast('Avaliação salva e enviada ao aluno.'); history.back(); }}>Salvar avaliação</button>
+      ); })}
+      <button className="os-btn os-btn--primary os-btn--block" onClick={() => { update((d) => { d.students.find((y) => y.id === s.id)!.tecnicas = t; notify(d, s.id, 'Avaliação técnica atualizada', `${ok} de ${p.tecs.length} técnicas aprovadas.`, 'nota'); }); toast('Avaliação salva e enviada ao aluno.'); }}>Salvar marcações</button>
     </Sub>
   );
 }
@@ -299,7 +367,7 @@ export function PerfilProf() {
   const db = useDB();
   const eu = db.profs.find((p) => p.id === db.session?.sid);
   const [f, setF] = useState({ nome: eu?.nome ?? '', tel: eu?.tel ?? '', belt: (eu?.belt ?? 'Preta') as BeltName, graus: eu?.graus ?? 0 });
-  const [senha, setSenha] = useState<string | null>(null);
+  const [senha, setSenha] = useState(false);
   const cam = useRef<HTMLInputElement>(null);
   const mudou = !!eu && (f.nome !== eu.nome || f.tel !== eu.tel || f.belt !== eu.belt || f.graus !== eu.graus);
   const minhas = db.aulas.filter((x) => x.prof === eu?.nome);
@@ -333,14 +401,9 @@ export function PerfilProf() {
       <div className="kv" style={{ padding: '0 4px' }}><span>E-mail de acesso</span><span>{db.session?.email}</span></div>
       <LinkCard icon="settings" title="Dados da academia" sub="Valores, Pix, códigos e equipe" onClick={() => go('prof/x/academia')} />
       <LinkCard icon="star" title="Requisitos de graduação" onClick={() => go('prof/x/requisitos')} />
-      <LinkCard icon="lock" title="Trocar senha" onClick={() => setSenha('')} />
+      <LinkCard icon="lock" title="Trocar senha" onClick={() => setSenha(true)} />
       <button className="os-btn os-btn--danger" onClick={() => sair()}>Sair</button>
-      {senha !== null && (
-        <Sheet title="Trocar senha" onClose={() => setSenha(null)}>
-          <Field label="Nova senha"><input className="os-input" type="password" autoComplete="new-password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="mínimo 6 caracteres" /></Field>
-          <button className="os-btn os-btn--primary os-btn--block" onClick={async () => { if (senha.length < 6) { toast('Mínimo 6 caracteres.'); return; } const r = await trocarSenha(senha); toast(r ?? 'Senha alterada.'); if (!r) setSenha(null); }}>Salvar senha</button>
-        </Sheet>
-      )}
+      {senha && <TrocarSenha onClose={() => setSenha(false)} />}
     </Sub>
   );
 }

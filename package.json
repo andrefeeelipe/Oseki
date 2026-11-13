@@ -14,8 +14,10 @@
   },
   "devDependencies": {
     "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.3",
     "@capacitor/cli": "^6.2.0",
     "@capacitor/core": "^6.2.0",
+    "@capacitor/ios": "^6.2.3",
     "@electric-sql/pglite": "^0.5.16",
     "@fontsource/barlow-condensed": "^5.1.0",
     "@fontsource/inter": "^5.1.0",
@@ -66,6 +68,5 @@
       "createDesktopShortcut": true,
       "shortcutName": "Oseki BJJ Painel"
     }
-  },
-  "dependencies": {}
+  }
 }

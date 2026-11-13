@@ -5,7 +5,7 @@ São dois produtos que usam os mesmos dados, em tempo real:
 
 | Produto | Para quem | Onde baixar |
 |---|---|---|
-| **App do celular** | Alunos e professores | Android: `OsekiBJJ.apk` em [Releases](../../releases/latest) · iPhone: abrir https://andrefeeelipe.github.io/Oseki/ no Safari → Compartilhar → *Adicionar à Tela de Início* |
+| **App do celular** | Alunos e professores | Android: `OsekiBJJ.apk` em [Releases](../../releases/latest) · iPhone: abrir https://andrefeeelipe.github.io/Oseki/ no Safari → Compartilhar → *Adicionar à Tela de Início* (ou `OsekiBJJ-iPhone.ipa` via AltStore/Sideloadly) |
 | **Painel da academia** | Professores e administradores, no computador | Windows: `OsekiBJJ-Painel-Setup.exe` em [Releases](../../releases/latest) · Navegador: https://andrefeeelipe.github.io/Oseki/painel/ |
 
 ## Primeiro uso
@@ -73,3 +73,12 @@ npm install
 npm run dev            # app do celular em http://localhost:5173
 npm run desktop        # painel em janela (Electron)
 ```
+
+## Alunos que já treinam
+
+A lista de alunos da planilha está em `supabase/import_alunos.sql` (faixa, graus, total de aulas, último treino e exames marcados).
+Esses alunos aparecem no app como "sem app" até criarem o acesso. No celular eles tocam em **Já é aluno? Faça seu acesso**, digitam o código da academia, escolhem o próprio nome na lista e criam e-mail e senha. A faixa e o histórico continuam os mesmos.
+
+## Currículo de exames
+
+As 40 técnicas de cada faixa (PDFs de exame) ficam em `src/data/curriculo.ts`. Graus 1 e 2 cobram da 1 à 20, graus 3 e 4 da 21 à 40, e a troca de faixa sorteia entre todas. O cronograma de treinos do ano fica em `src/data/cronograma.ts`.

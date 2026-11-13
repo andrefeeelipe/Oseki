@@ -9,6 +9,7 @@ import { go } from '../../ui/router';
 import { planoNome } from '../../data/seed';
 import { validarQR } from '../shared/qr';
 import { useMe } from './common';
+import { passoExame } from '../shared/exame';
 
 /* E02 · Permissão de localização */
 export function Permissao() {
@@ -234,37 +235,65 @@ export function Tecnicas() {
   );
 }
 
-/* E08 · Exame de faixa */
+/* E08 · Exame de faixa (currículo dos PDFs da academia) */
 export function Exame() {
   const { db, me } = useMe();
   const meta = metaDe(db, me);
-  const nf = me.graus < 4 ? `${me.graus + 1}º grau` : `Faixa ${(proximaFaixa(me) ?? me.belt).toLowerCase()}`;
-  const ex = db.settings.proximoExame ? fromIso(db.settings.proximoExame) : null;
-  const reqs = [
-    { t: `${meta} aulas na faixa`, d: `${Math.min(me.aulas, meta)} de ${meta}`, ok: me.aulas >= meta },
-    { t: 'Frequência acima de 70%', d: `${freq(db, me)}% nos últimos 30 dias`, ok: freq(db, me) >= 70 },
-    ...db.tecnicas.filter((t) => ['t1', 't2', 't3', 't4', 't5', 't6'].includes(t.id)).map((t) => ({ t: t.titulo, d: (me.tecnicas[t.id] ?? 0) === 2 ? 'aprovada pelo professor' : (me.tecnicas[t.id] ?? 0) === 1 ? 'em treino' : 'ainda não avaliada', ok: (me.tecnicas[t.id] ?? 0) === 2 })),
-  ];
+  const p = passoExame(me);
+  const ex = me.exame?.data ? fromIso(me.exame.data) : db.settings.proximoExame ? fromIso(db.settings.proximoExame) : null;
+  const ok = p ? p.tecs.filter((t) => t.nivel === 2).length : 0;
   return (
     <Sub title="Exame de faixa" sub={`${me.belt} · ${grausTxt(me.graus)}`} fallback="aluno/faixa">
       <div className="os-card os-card--night" style={{ padding: 18 }}>
         <Belt belt={me.belt} graus={me.graus} />
-        <div className="row-between"><div className="col"><span className="os-muted t-small">Próximo passo</span><span style={{ fontWeight: 700, fontSize: 17 }}>{nf}</span></div>
-          <div className="col" style={{ alignItems: 'flex-end' }}><span className="os-muted t-small">Próximo exame</span><span style={{ fontWeight: 700 }}>{ex ? curta(ex) : 'A definir'}</span></div></div>
+        <div className="row-between"><div className="col"><span className="os-muted t-small">Próximo passo</span><span style={{ fontWeight: 700, fontSize: 17 }}>{me.exame?.alvo ?? p?.alvo ?? '—'}</span></div>
+          <div className="col" style={{ alignItems: 'flex-end' }}><span className="os-muted t-small">Exame</span><span style={{ fontWeight: 700 }}>{ex ? curta(ex) : 'A definir'}</span></div></div>
         {me.apto && <span className="os-chip os-chip--success" style={{ alignSelf: 'flex-start' }}>Você está apto. Oss!</span>}
       </div>
+      {me.exame?.media != null && (
+        <div className="os-card os-card--flat row-between" style={{ flexDirection: 'row' }}>
+          <span className="t-strong">Última avaliação · média {me.exame.media.toFixed(1).replace('.', ',')}</span>
+          <Chip tone={me.exame.aprovado ? 'success' : 'warning'}>{me.exame.aprovado ? 'Aprovado' : 'Treinar mais'}</Chip>
+        </div>
+      )}
       <Overline>Requisitos</Overline>
       <div className="os-list">
-        {reqs.map((r, i) => (
+        {[{ t: `${meta} aulas na faixa`, d: `${Math.min(me.aulas, meta)} de ${meta}`, ok: me.aulas >= meta }, { t: 'Frequência acima de 70%', d: `${freq(db, me)}% nos últimos 30 dias`, ok: freq(db, me) >= 70 }].map((r, i) => (
           <div key={i} className="os-listrow">
-            <span style={{ width: 26, height: 26, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: r.ok ? 'var(--success-soft)' : 'var(--surface-sunken)', color: r.ok ? 'var(--success)' : 'var(--ink-subtle)', border: r.ok ? 0 : '1.5px dashed var(--line-strong)' }}>{r.ok && <Icon n="check" size={14} sw={3} />}</span>
+            <Check ok={r.ok} />
             <span className="os-listrow__body"><span className="os-listrow__title">{r.t}</span><span className="os-listrow__meta">{r.d}</span></span>
           </div>
         ))}
       </div>
+      {p ? (
+        <>
+          <div className="os-card os-card--flat" style={{ gap: 6 }}>
+            <span className="t-strong">Como é a prova</span>
+            <span className="t-sub">O professor sorteia {p.qtd} técnicas entre a {p.de} e a {p.ate} do currículo da faixa {p.faixa.toLowerCase()}. Cada uma vale nota de 0 a 10. Média mínima para passar: {String(p.media).replace('.', ',')}.</span>
+          </div>
+          <Overline>Técnicas cobradas · {ok} de {p.tecs.length} aprovadas</Overline>
+          <div className="os-list">
+            {p.tecs.map((t) => (
+              <div key={t.n} className="os-listrow">
+                <Check ok={t.nivel === 2} />
+                <span className="os-listrow__body"><span className="os-listrow__title">{t.n}. {t.nome}</span><span className="os-listrow__meta">{t.nivel === 2 ? 'aprovada pelo professor' : t.nivel === 1 ? 'em treino' : 'ainda não avaliada'}</span></span>
+              </div>
+            ))}
+          </div>
+          {p.exameFaixa && p.c.solo.length > 0 && (
+            <>
+              <Overline>Movimentos de solo</Overline>
+              <div className="os-list">{p.c.solo.map((t) => <div key={t} className="os-listrow"><span className="os-listrow__body"><span className="os-listrow__title">{t}</span></span></div>)}</div>
+            </>
+          )}
+        </>
+      ) : <span className="t-sub" style={{ padding: '0 4px' }}>Faixa preta: graus definidos pelo professor.</span>}
       <span className="t-sub" style={{ padding: '0 4px' }}>As técnicas são marcadas pelo professor durante as aulas. A decisão final da graduação é sempre dele.</span>
     </Sub>
   );
+}
+function Check({ ok }: { ok: boolean }) {
+  return <span style={{ width: 26, height: 26, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: ok ? 'var(--success-soft)' : 'var(--surface-sunken)', color: ok ? 'var(--success)' : 'var(--ink-subtle)', border: ok ? 0 : '1.5px dashed var(--line-strong)' }}>{ok && <Icon n="check" size={14} sw={3} />}</span>;
 }
 
 /* E09 · Carteirinha */

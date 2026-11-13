@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { useEffect, useRef } from 'react';
+import { fecharAbertos } from './router';
 import type { BeltName, Student, Attendance } from '../data/types';
 import { BELTS, ringOf, iniciais, WD_INI, iso, today, fromIso } from '../data/util';
 import { useToast } from '../data/store';
@@ -95,6 +97,8 @@ export function Toast() {
 }
 
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const fechar = useRef(onClose); fechar.current = onClose;
+  useEffect(() => { const f = () => fechar.current(); fecharAbertos.push(f); return () => { const i = fecharAbertos.indexOf(f); if (i >= 0) fecharAbertos.splice(i, 1); }; }, []);
   return (
     <div className="sheet-bg" onClick={onClose}>
       <div className="sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
